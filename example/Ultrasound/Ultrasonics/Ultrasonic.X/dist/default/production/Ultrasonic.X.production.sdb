@@ -1,0 +1,135 @@
+[p LITE_MODE AUTOSTATIC PIC14 PICREGULAR PICMID ]
+[d version 1.1 ]
+[d edition pro ]
+[d chip 12F675 ]
+[d frameptr 6 ]
+"75 C:\Users\plivai\Uni\2018\ENEL417/main.c
+[v _main main `(v  1 e 1 0 ]
+"258
+[v _ISR ISR `II(v  1 e 1 0 ]
+"62 C:\Program Files (x86)\Microchip\xc8\v1.43\sources\common\float.c
+[v ___ftpack __ftpack `(f  1 e 3 0 ]
+"86 C:\Program Files (x86)\Microchip\xc8\v1.43\sources\common\ftadd.c
+[v ___ftadd __ftadd `(f  1 e 3 0 ]
+"15 C:\Program Files (x86)\Microchip\xc8\v1.43\sources\common\Umul16.c
+[v ___wmul __wmul `(ui  1 e 2 0 ]
+"6 C:\Program Files (x86)\Microchip\xc8\v1.43\sources\pic\eeprom.c
+[v _eecpymem eecpymem `(v  1 e 1 0 ]
+"39
+[v _memcpyee memcpyee `(v  1 e 1 0 ]
+"33 C:\Users\plivai\Uni\2018\ENEL417/main.c
+[v _flag_button flag_button `b  1 e 0 0 ]
+"35
+[v _led_on led_on `b  1 e 0 0 ]
+"40
+[v _n_time_off n_time_off `i  1 e 2 0 ]
+"41
+[v _time_count time_count `VEi  1 e 2 0 ]
+"43
+[v _dc_offset dc_offset `s  1 e 2 0 ]
+"45
+[v _ping_time_count ping_time_count `VEuc  1 e 1 0 ]
+"47
+[v _n_pings n_pings `uc  1 e 1 0 ]
+"49
+[v _delay_time delay_time `uc  1 e 1 0 ]
+"51
+[v _tmp_GPIO tmp_GPIO `uc  1 e 1 0 ]
+"53
+[v _temp temp `um  1 e 3 0 ]
+"54
+[v _old_mag old_mag `um  1 e 3 0 ]
+"55
+[v _mag mag `um  1 e 3 0 ]
+"56
+[v _pulse_sensitivity pulse_sensitivity `s  1 e 2 0 ]
+"72
+[v _h1 h1 `uc  1 e 1 0 ]
+[v _h2 h2 `uc  1 e 1 0 ]
+"73
+[v _a1 a1 `s  1 e 2 0 ]
+[v _a2 a2 `s  1 e 2 0 ]
+"70 C:\Program Files (x86)\Microchip\xc8\v1.43\include\pic12f675.h
+[v _TMR0 TMR0 `VEuc  1 e 1 @1 ]
+"216
+[v _GPIO GPIO `VEuc  1 e 1 @5 ]
+"324
+[v _INTCON INTCON `VEuc  1 e 1 @11 ]
+"562
+[v _CMCON CMCON `VEuc  1 e 1 @25 ]
+"621
+[v _ADRESH ADRESH `VEuc  1 e 1 @30 ]
+"795
+[v _TRISIO TRISIO `VEuc  1 e 1 @133 ]
+"1206
+[v _VRCON VRCON `VEuc  1 e 1 @153 ]
+"1382
+[v _ADRESL ADRESL `VEuc  1 e 1 @158 ]
+"1477
+[v _ADCS0 ADCS0 `VEb  1 e 0 @1276 ]
+"1479
+[v _ADCS1 ADCS1 `VEb  1 e 0 @1277 ]
+"1481
+[v _ADCS2 ADCS2 `VEb  1 e 0 @1278 ]
+"1483
+[v _ADFM ADFM `VEb  1 e 0 @255 ]
+"1489
+[v _ADON ADON `VEb  1 e 0 @248 ]
+"1495
+[v _ANS2 ANS2 `VEb  1 e 0 @1274 ]
+"1497
+[v _ANS3 ANS3 `VEb  1 e 0 @1275 ]
+"1513
+[v _CHS0 CHS0 `VEb  1 e 0 @250 ]
+"1515
+[v _CHS1 CHS1 `VEb  1 e 0 @251 ]
+"1539
+[v _GIE GIE `VEb  1 e 0 @95 ]
+"1541
+[v _GO GO `VEb  1 e 0 @249 ]
+"1561
+[v _GPIF GPIF `VEb  1 e 0 @88 ]
+"1569
+[v _GPIO3 GPIO3 `VEb  1 e 0 @43 ]
+"1573
+[v _GPIO5 GPIO5 `VEb  1 e 0 @45 ]
+"1587
+[v _IOC3 IOC3 `VEb  1 e 0 @1203 ]
+"1609
+[v _PS0 PS0 `VEb  1 e 0 @1032 ]
+"1611
+[v _PS1 PS1 `VEb  1 e 0 @1033 ]
+"1613
+[v _PS2 PS2 `VEb  1 e 0 @1034 ]
+"1615
+[v _PSA PSA `VEb  1 e 0 @1035 ]
+"1623
+[v _T0CS T0CS `VEb  1 e 0 @1037 ]
+"1625
+[v _T0IE T0IE `VEb  1 e 0 @93 ]
+"1627
+[v _T0IF T0IF `VEb  1 e 0 @90 ]
+"1667
+[v _VCFG VCFG `VEb  1 e 0 @254 ]
+"75 C:\Users\plivai\Uni\2018\ENEL417/main.c
+[v _main main `(v  1 e 1 0 ]
+{
+"77
+[v main@i i `uc  1 a 1 17 ]
+"256
+} 0
+"15 C:\Program Files (x86)\Microchip\xc8\v1.43\sources\common\Umul16.c
+[v ___wmul __wmul `(ui  1 e 2 0 ]
+{
+"17
+[v ___wmul@product product `ui  1 a 2 9 ]
+"15
+[v ___wmul@multiplier multiplier `ui  1 p 2 5 ]
+[v ___wmul@multiplicand multiplicand `ui  1 p 2 7 ]
+"53
+} 0
+"258 C:\Users\plivai\Uni\2018\ENEL417/main.c
+[v _ISR ISR `II(v  1 e 1 0 ]
+{
+"292
+} 0

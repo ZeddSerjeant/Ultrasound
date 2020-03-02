@@ -1,0 +1,286 @@
+Disassembly Listing for Ultrasonic
+Generated From:
+C:/Users/plivai/Uni/2018/ENEL417/Ultrasonics/Ultrasonic.X/dist/default/production/Ultrasonic.X.production.elf
+2/03/2018 2:05:53 PM
+
+---  C:/Users/plivai/Uni/2018/ENEL417/main.c  -----------------------------------------------------------
+1:             /* PIC functionality Attempts*/
+2:             
+3:             //#pragma config WDTE = OFF       // Watchdog Timer Enable bit (WDT enabled)
+4:             
+5:             
+6:             
+7:             
+8:             #include <pic.h>
+9:             #include <xc.h>
+10:            #include <stdlib.h>
+11:            
+12:            // Config
+13:            #pragma config FOSC = INTRCIO   // Oscillator Selection bits (INTOSC oscillator: I/O function on GP4/OSC2/CLKOUT pin, I/O function on GP5/OSC1/CLKIN)
+14:            #pragma config WDTE = OFF       // Watchdog Timer Enable bit (WDT disabled)
+15:            #pragma config PWRTE = OFF      // Power-Up Timer Enable bit (PWRT disabled)
+16:            #pragma config MCLRE = OFF      // GP3/MCLR pin function select (GP3/MCLR pin function is digital I/O, MCLR internally tied to VDD)
+17:            #pragma config BOREN = OFF      // Brown-out Detect Enable bit (BOD disabled)
+18:            #pragma config CP = OFF         // Code Protection bit (Program Memory code protection is disabled)
+19:            #pragma config CPD = OFF        // Data Code Protection bit (Data memory code protection is disabled)
+20:            
+21:            #define LED GPIO5
+22:            
+23:            int led_on = 0;
+24:            //int start_counter = 1000000;
+25:            int led_counter = 0;
+26:            
+27:            // time counting variables 1tick = 1MHz/256
+28:            int n_time_on = 5; // time for led to spend on
+29:            int n_time_off = 50; // time for led to spend off
+30:            volatile int time_count = 0; // the counter that is compared to the above two variables
+31:            
+32:            int ping_time_top = 15; // time to take for each ping
+33:            volatile int ping_time_count = 0; // counting to the top
+34:            
+35:            
+36:            void main()
+37:            {   
+38:                // Initialize XXX convert to C eventually
+39:                asm("call 0x3FF");
+0026  23FF     CALL 0x3FF
+40:                RP0=1; // use Bank 1 for registers // asm("bsf STATUS,5");
+0027  1283     BCF STATUS, 0x5
+0028  1683     BSF STATUS, 0x5
+41:                asm("movwf OSCCAL");
+0029  0090     MOVWF T1CON
+42:            
+43:                VRCON = 0X00; // turn off voltage reference
+002A  1683     BSF STATUS, 0x5
+002B  0199     CLRF CMCON
+44:                CMCON = 0X07; // disable comparator
+002C  3007     MOVLW 0x7
+002D  1283     BCF STATUS, 0x5
+002E  0099     MOVWF CMCON
+45:            
+46:                INTCON = 0x00; // disable all interrupts
+002F  018B     CLRF INTCON
+47:                T0IE = 1; // enable timer0 interrupt
+0030  168B     BSF INTCON, 0x5
+48:            
+49:                TRISIO = 0x0; // Set all io as output
+0031  1683     BSF STATUS, 0x5
+0032  0185     CLRF GPIO
+50:                GPIO = 0x00; // set all GPIO to low
+0033  1283     BCF STATUS, 0x5
+0034  0185     CLRF GPIO
+51:            
+52:               
+53:            
+54:                //timer0
+55:                T0CS = 0; // Use internal clock for the timer
+0035  1683     BSF STATUS, 0x5
+0036  1281     BCF TMR0, 0x5
+56:                PSA = 0; // prescaler is used by Timer0
+0037  1181     BCF TMR0, 0x3
+57:                // set the prescaler to be 1:128
+58:                PS2 = 1;
+0038  1501     BSF TMR0, 0x2
+59:                PS1 = 1;
+0039  1481     BSF TMR0, 0x1
+60:                PS0 = 1;
+003A  1401     BSF TMR0, 0x0
+61:            
+62:            
+63:            
+64:                GIE = 1; // enable all interrupts
+003B  178B     BSF INTCON, 0x7
+65:            
+66:                while (1) // flash LED
+67:                {
+68:                    if (led_on) // && (led_counter < start_counter)
+003C  1283     BCF STATUS, 0x5
+003D  0826     MOVF led_on, W
+003E  0427     IORWF 0x27, W
+003F  1903     BTFSC STATUS, 0x2
+0040  2854     GOTO 0x54
+69:                    {
+70:                        LED = 1; // turn on the LED
+0041  1685     BSF GPIO, 0x5
+71:                        if (time_count > n_time_on) // check to see if we are finished being on
+0042  082D     MOVF 0x2D, W
+0043  3A80     XORLW 0x80
+0044  00B2     MOVWF 0x32
+0045  0823     MOVF 0x23, W
+0046  3A80     XORLW 0x80
+0047  0232     SUBWF 0x32, W
+0048  1D03     BTFSS STATUS, 0x2
+0049  284C     GOTO 0x4C
+004A  0822     MOVF time_count, W
+004B  022C     SUBWF n_time_on, W
+004C  1803     BTFSC STATUS, 0x0
+004D  2868     GOTO 0x68
+72:                        {
+73:                            time_count = 0;
+004E  1283     BCF STATUS, 0x5
+004F  01A2     CLRF time_count
+0050  01A3     CLRF 0x23
+74:                            led_on = 0;
+0051  01A6     CLRF led_on
+0052  01A7     CLRF 0x27
+75:                        }
+76:                    }
+0053  2868     GOTO 0x68
+77:                    else
+78:                    {
+79:                        LED = 0;
+0054  1285     BCF GPIO, 0x5
+80:                        if (time_count > n_time_off)
+0055  082B     MOVF 0x2B, W
+0056  3A80     XORLW 0x80
+0057  00B2     MOVWF 0x32
+0058  0823     MOVF 0x23, W
+0059  3A80     XORLW 0x80
+005A  0232     SUBWF 0x32, W
+005B  1D03     BTFSS STATUS, 0x2
+005C  285F     GOTO 0x5F
+005D  0822     MOVF time_count, W
+005E  022A     SUBWF n_time_off, W
+005F  1803     BTFSC STATUS, 0x0
+0060  2868     GOTO 0x68
+81:                        {
+82:                            time_count = 0;
+0061  1283     BCF STATUS, 0x5
+0062  01A2     CLRF time_count
+0063  01A3     CLRF 0x23
+83:                            led_on = 1;
+0064  3001     MOVLW 0x1
+0065  00A6     MOVWF led_on
+0066  3000     MOVLW 0x0
+0067  00A7     MOVWF 0x27
+84:                        }
+85:                    }
+86:            
+87:                    if (ping_time_count > ping_time_top)
+0068  1283     BCF STATUS, 0x5
+0069  0829     MOVF 0x29, W
+006A  3A80     XORLW 0x80
+006B  00B2     MOVWF 0x32
+006C  0821     MOVF 0x21, W
+006D  3A80     XORLW 0x80
+006E  0232     SUBWF 0x32, W
+006F  1D03     BTFSS STATUS, 0x2
+0070  2873     GOTO 0x73
+0071  0820     MOVF ping_time_count, W
+0072  0228     SUBWF ping_time_top, W
+0073  1803     BTFSC STATUS, 0x0
+0074  283C     GOTO 0x3C
+88:                    {
+89:                        GIE = 0; // disable interrupts for this
+0075  138B     BCF INTCON, 0x7
+90:                        ping_time_count = 0;
+0076  1283     BCF STATUS, 0x5
+0077  01A0     CLRF ping_time_count
+0078  01A1     CLRF 0x21
+91:            
+92:                        // Loop to get x cycles off the transducer
+93:                        for (char i=0; i<6; i++)
+0079  01B3     CLRF i
+007A  3006     MOVLW 0x6
+007B  0233     SUBWF i, W
+007C  1803     BTFSC STATUS, 0x0
+007D  283B     GOTO 0x3B
+008C  3001     MOVLW 0x1
+008D  00B2     MOVWF 0x32
+008E  0832     MOVF 0x32, W
+008F  07B3     ADDWF i, F
+0090  287A     GOTO 0x7A
+94:                        {
+95:                            asm("NOP");
+007E  0000     NOP
+96:                            asm("NOP");
+007F  0000     NOP
+97:                            asm("NOP");
+0080  0000     NOP
+98:                            asm("NOP");
+0081  0000     NOP
+99:                            //asm("NOP");
+100:                           
+101:                           GPIO = 0x01;
+0082  3001     MOVLW 0x1
+0083  1283     BCF STATUS, 0x5
+0084  0085     MOVWF GPIO
+102:           
+103:                           asm("NOP");
+0085  0000     NOP
+104:                           asm("NOP");
+0086  0000     NOP
+105:                           asm("NOP");
+0087  0000     NOP
+106:                           asm("NOP");
+0088  0000     NOP
+107:                           // asm("NOP");
+108:                           // asm("NOP");
+109:                           // asm("NOP");
+110:                           // asm("NOP");
+111:                           // asm("NOP");
+112:           
+113:                           GPIO = 0x02;
+0089  3002     MOVLW 0x2
+008A  1283     BCF STATUS, 0x5
+008B  0085     MOVWF GPIO
+008C  3001     MOVLW 0x1
+008D  00B2     MOVWF 0x32
+008E  0832     MOVF 0x32, W
+008F  07B3     ADDWF i, F
+0090  287A     GOTO 0x7A
+114:                       }
+115:           
+116:                       GIE = 1; // reenable interrupts
+117:           
+118:                   }
+119:               }
+120:           }
+121:           
+122:           void interrupt ISR()
+0004  00DE     MOVWF 0x5E
+123:           {
+124:               if (T0IF)
+0091  1D0B     BTFSS INTCON, 0x2
+0092  28A1     GOTO 0xA1
+125:               {
+126:                   T0IF = 0;//clear the overflow bit
+0093  110B     BCF INTCON, 0x2
+127:                   TMR0 = 0;
+0094  0181     CLRF TMR0
+128:                   time_count++;
+0095  3001     MOVLW 0x1
+0096  07A2     ADDWF time_count, F
+0097  1803     BTFSC STATUS, 0x0
+0098  0AA3     INCF 0x23, F
+0099  3000     MOVLW 0x0
+009A  07A3     ADDWF 0x23, F
+129:                   ping_time_count++;
+009B  3001     MOVLW 0x1
+009C  07A0     ADDWF ping_time_count, F
+009D  1803     BTFSC STATUS, 0x0
+009E  0AA1     INCF 0x21, F
+009F  3000     MOVLW 0x0
+00A0  07A1     ADDWF 0x21, F
+130:               }
+131:               
+132:               //led_on ^= 1;
+133:               // if (T0IF)
+134:               // {
+135:               //     led_on = 1;
+136:               //     led_counter = 0;
+137:               // }
+138:               return;
+139:           }
+00A1  0831     MOVF 0x31, W
+00A2  00DF     MOVWF 0x5F
+00A3  0830     MOVF 0x30, W
+00A4  008A     MOVWF PCLATH
+00A5  082F     MOVF 0x2F, W
+00A6  0084     MOVWF FSR
+00A7  0E2E     SWAPF __pcstackBANK0, W
+00A8  0083     MOVWF STATUS
+00A9  0EDE     SWAPF 0x5E, F
+00AA  0E5E     SWAPF 0x5E, W
+00AB  0009     RETFIE
+140:           
