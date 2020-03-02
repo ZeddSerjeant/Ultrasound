@@ -14,14 +14,18 @@
 #pragma config CP = OFF         // Code Protection bit (Program Memory code protection is disabled)
 #pragma config CPD = OFF        // Data Code Protection bit (Data memory code protection is disabled)
 
-#include <xc.h>
+#include "head.h"
 
+unsigned char led_state = OFF; // for ease of toggling in an interrupt
 
-enum FLAGS {OFF=0, CLEAR=0, ON=1}; // Constants (timers are set to 0 for internal clocks)
-
-#define LED_PIN TRISIO5
-#define LED GPIO5
-
+void interrupt ISR()
+{
+	if (TIMER0_INTERRUPT_FLAG) // if the timer0 interrupt flag was set (timer0 triggered)
+	{
+		led_state = ~led_state; // toggle LED
+		TIMER0_INTERRUPT_FLAG = 0; // clear interrupt flag since we dealt with it
+	}
+}
 
 void main() 
 {
@@ -29,26 +33,16 @@ void main()
 	LED_PIN = 0; // Set GP5 to output directly. Slower with more outputs, but more readable
     LED = OFF; // Initalize LED as off
     
-   	TMR0 = 0; // clear counter
-   	T0CS = 0; // internal clock
-   	PSA = 0; // enable prescaler for Timer0
+   	TIMER0_COUNTER = CLEAR; // clear counter
+   	TIMER0_CLOCK_SCOURCE = TIMER_ENABLE; // internal clock
+   	PRESCALER = 0; // enable prescaler for Timer0
    	PS2=1; PS1=1; PS0=1; // Set prescaler to 1:256
-   	
+   	TIMER0_INTERRUPT_ENABLE = ON; // enable timer0 interrupts
+   	GLOBAL_INTERRUPTS = ON;
 
-
-   	const unsigned char COUNT = 8; // value to achieve 500ms timing
-   	unsigned char counter=0; // counter for accurate timing. Once the timer triggers, counter counts up to COUNT for the left over time.
     while (1)
     {
-   		while (!T0IF); //waits till overflow triggers, when the timer0 counts down
-   		T0IF = CLEAR; // clear the overflow bit so the loop can repeat
-    	// LED = ~LED; // takes approximately 3 clockcycles of 1us each
-   		counter++; // incrememnt the counter as per its definition
-   		if (counter==COUNT)
-   		{
-   			counter = 0; // reset for next loop
-   			LED = ~LED;
-   		}
+   		LED = led_state;
     }
     return;
 }
