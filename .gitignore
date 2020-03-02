@@ -1,0 +1,5 @@
+# Specify filepatterns you want git to ignore.
+
+Ultrasound.X/build/
+Ultrasound.X/debug/
+Ultrasound.X/dist/
