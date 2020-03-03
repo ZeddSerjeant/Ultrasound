@@ -19,11 +19,7 @@
 unsigned char led_state = ON; // for ease of toggling
 unsigned int led_duty_cycle = 222; // Duty cycle of LED as on_time[ms]
 unsigned int led_period = 500; // period of flashing LED [ms]
-unsigned int led_duty_cycle_counter = 0; 
-
-unsigned char timer0_initial= 0; // for timing smaller than a single time loop.
-unsigned char timer0_delay = 0; // for times longer than the timer itself
-unsigned char delay_count = 0; // for use with the above
+unsigned int led_duty_cycle_counter = 0;
 
 unsigned char timer0_initial= 0; // for timing smaller than a single time loop.
 unsigned char timer0_delay = 0; // for times longer than the timer itself
@@ -54,6 +50,7 @@ void main()
    	TIMER0_COUNTER = timer0_initial; // set counter
    	TIMER0_CLOCK_SCOURCE = INTERNAL; // internal clock
    	PRESCALER = 0; // enable prescaler for Timer0
+    PS2=0; PS1=1; PS0=0; // Set prescaler to 1:8
    	TIMER0_INTERRUPT_ENABLE = ON; // enable timer0 interrupts
    	GLOBAL_INTERRUPTS = ON;
 
