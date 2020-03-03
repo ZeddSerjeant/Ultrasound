@@ -25,6 +25,10 @@ unsigned char timer0_initial= 0; // for timing smaller than a single time loop.
 unsigned char timer0_delay = 0; // for times longer than the timer itself
 unsigned char delay_count = 0; // for use with the above
 
+unsigned char timer0_initial= 0; // for timing smaller than a single time loop.
+unsigned char timer0_delay = 0; // for times longer than the timer itself
+unsigned char delay_count = 0; // for use with the above
+
 void interrupt ISR()
 {
 	if (TIMER0_INTERRUPT_FLAG) // if the timer0 interrupt flag was set (timer0 triggered)
@@ -50,7 +54,6 @@ void main()
    	TIMER0_COUNTER = timer0_initial; // set counter
    	TIMER0_CLOCK_SCOURCE = INTERNAL; // internal clock
    	PRESCALER = 0; // enable prescaler for Timer0
-   	PS2=0; PS1=1; PS0=0; // Set prescaler to 1:8
    	TIMER0_INTERRUPT_ENABLE = ON; // enable timer0 interrupts
    	GLOBAL_INTERRUPTS = ON;
 
