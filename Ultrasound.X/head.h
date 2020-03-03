@@ -1,6 +1,6 @@
 #include <xc.h>
 
-enum FLAGS {OFF=0, CLEAR=0, TIMER_ENABLE=0, INTERNAL=0, OUTPUT=0, ON=1}; // Constants (timers are set to 0 for internal clocks)
+enum FLAGS {OFF=0, CLEAR=0, INTERNAL=0, OUTPUT=0, ON=1}; // Constants (timers are set to 0 for internal clocks)
 
 // more readable
 #define PRESCALER PSA
