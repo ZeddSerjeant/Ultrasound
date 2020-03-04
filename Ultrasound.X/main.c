@@ -19,33 +19,45 @@ unsigned char timer0_initial= 0; // for timing smaller than a single time loop.
 unsigned char timer0_delay = 0; // for times longer than the timer itself
 unsigned char delay_count = 0; // for use with the above
 
+unsigned char button_state = 0;
+
 void interrupt ISR()
 {
 	if (TIMER0_INTERRUPT_FLAG) // if the timer0 interrupt flag was set (timer0 triggered)
 	{
-		TIMER0_INTERRUPT_FLAG = 0; // clear interrupt flag since we are dealing with it
+		TIMER0_INTERRUPT_FLAG = CLEAR; // clear interrupt flag since we are dealing with it
 		delay_count++; // increment time delay
 		TIMER0_COUNTER = timer0_initial + 2; // reset counter, but also add 2 since it takes 2 clock cycles to get going
 		
 	}
+	else if (BUTTON_INTERRUPT_FLAG) // if the button has been pressed (Only IO Interrupt set)
+	{
+		BUTTON_INTERRUPT_FLAG = CLEAR; // we are dealing with it
+		button_state = BUTTON; // save the value
+	}
 }
 
 void main() 
-{
-    // TRISIO = 0xDF; // make GP5 an output using full byte (faster to set multiple things)
-	LED_PIN = OUTPUT; // Set GP5 to output directly. Slower with more outputs, but more readable
-    LED = led_state; // Initalize LED
-
-    //calculate intial for accurate timing $ inital = TimerMax-((Delay*Fosc)/(Prescaler*4))
+{	
+    // Set up the timer
+    // calculate intial for accurate timing $ inital = TimerMax-((Delay*Fosc)/(Prescaler*4))
     // This shrinks timing smaller than directly prescaling for when thats necessary
     timer0_initial = 220;
     timer0_delay = 4; // for 1ms and prescaler of 1:8 (adjusted empirically)
-    
    	TIMER0_COUNTER = timer0_initial; // set counter
    	TIMER0_CLOCK_SCOURCE = INTERNAL; // internal clock
    	PRESCALER = 0; // enable prescaler for Timer0
     PS2=0; PS1=1; PS0=0; // Set prescaler to 1:8
-   	TIMER0_INTERRUPT_ENABLE = ON; // enable timer0 interrupts
+   	TIMER0_INTERRUPT = ON; // enable timer0 interrupts
+
+   	//Set up IO
+   	LED_PIN = OUTPUT; // Set LED (GPIO5) to output directly. Slower with more outputs, but more readable
+    LED = led_state; // Initalize LED
+
+    BUTTON_PIN = INPUT;
+    BUTTON_INTERRUPT = ON;
+
+
    	GLOBAL_INTERRUPTS = ON;
 
     while (1)
@@ -72,8 +84,10 @@ void main()
    		{
    			led_state = ON; // within On part of duty cycle
    		}
-
-   		LED = led_state; // output required voltage
+   		
+   		
+        LED = button_state; // Make the PIN reflect the updated state
+   		
     }
     
     return;

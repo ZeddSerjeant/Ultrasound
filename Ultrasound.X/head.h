@@ -1,15 +1,16 @@
 #include <xc.h>
 
-enum FLAGS {OFF=0, CLEAR=0, INTERNAL=0, OUTPUT=0, ON=1}; // Constants (timers are set to 0 for internal clocks)
+enum FLAGS {OFF=0, CLEAR=0, INTERNAL=0, OUTPUT=0, INPUT=1, ON=1}; // Constants (timers are set to 0 for internal clocks)
 
 // more readable
 #define PRESCALER PSA
 #define GLOBAL_INTERRUPTS GIE
+
 //TIMER0
-#define TIMER0_INTERRUPT_ENABLE T0IE
-#define TIMER0_INTERRUPT_FLAG TMR0IF
 #define TIMER0_COUNTER TMR0
 #define TIMER0_CLOCK_SCOURCE T0CS
+#define TIMER0_INTERRUPT T0IE
+#define TIMER0_INTERRUPT_FLAG TMR0IF
 
 //Ultrasonic Transducer
 #define T11 GPIO0
@@ -17,12 +18,14 @@ enum FLAGS {OFF=0, CLEAR=0, INTERNAL=0, OUTPUT=0, ON=1}; // Constants (timers ar
 #define T12 GPIO1
 #define T1_PIN2 TRISIO1
 
-#define T2 GPIO2
-#define T2_PIN TRISIO2
+#define RECEIVER GPIO2
+#define RECEIVER_PIN TRISIO2
 
 //Button
 #define BUTTON GPIO3
 #define BUTTON_PIN TRISIO3 
+#define BUTTON_INTERRUPT IOC3
+#define BUTTON_INTERRUPT_FLAG GPIF
 
 // LED based on board
 #define LED GPIO5
