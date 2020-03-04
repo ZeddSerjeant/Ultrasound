@@ -1,9 +1,3 @@
-/*
- * File:   main.c
- * Author: zjtp1
- *
- * Created on 2 March 2020, 12:46 PM
- */
 
 // CONFIG
 #pragma config FOSC = INTRCIO   // Oscillator Selection bits (INTOSC oscillator: I/O function on GP4/OSC2/CLKOUT pin, I/O function on GP5/OSC1/CLKIN)
@@ -39,7 +33,7 @@ void interrupt ISR()
 void main() 
 {
     // TRISIO = 0xDF; // make GP5 an output using full byte (faster to set multiple things)
-	LED_PIN = 0; // Set GP5 to output directly. Slower with more outputs, but more readable
+	LED_PIN = OUTPUT; // Set GP5 to output directly. Slower with more outputs, but more readable
     LED = led_state; // Initalize LED
 
     //calculate intial for accurate timing $ inital = TimerMax-((Delay*Fosc)/(Prescaler*4))
