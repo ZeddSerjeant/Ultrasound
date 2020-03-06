@@ -11,7 +11,7 @@
 #include "head.h"
 
 unsigned char led_state = ON; // for ease of toggling
-unsigned int led_duty_cycle = 222; // Duty cycle of LED as on_time[ms]
+unsigned int led_duty_cycle = 250; // Duty cycle of LED as on_time[ms]
 unsigned int led_period = 500; // period of flashing LED [ms]
 unsigned int led_duty_cycle_counter = 0;
 
@@ -19,7 +19,7 @@ unsigned char timer0_initial= 0; // for timing smaller than a single time loop.
 unsigned char timer0_delay = 0; // for times longer than the timer itself
 unsigned char delay_count = 0; // for use with the above
 
-unsigned char button_pressed = 0; // pressing the button toggles this, rather than this reflecting the actual current state of the button. Probably change this name in the future to actually represent the difference modes I'll program
+unsigned char device_state = 0; // pressing the button toggles this
 unsigned char button_bounce = 200; // a number of interupts to allow ignoring button bounce [ms]
 unsigned char button_bounce_count = 0; // to increment to this value
 
@@ -37,7 +37,7 @@ void interrupt ISR()
 		BUTTON_INTERRUPT_FLAG = CLEAR; // we are dealing with it
 		if (!BUTTON && !button_bounce_count) // button was pressed and therefore this will read low (and we avoided bounce)
 		{
-			button_pressed = ~button_pressed; // toggle the stored button state so we can have an internal state based on it
+			device_state = ~device_state; // toggle the stored button state so we can have an internal state based on it
 			button_bounce_count = button_bounce; // prevent this code from being triggered by the button bounce.
 		}
 	}
@@ -64,11 +64,26 @@ void main()
     BUTTON_INTERRUPT = ON; // enable the pin the button is attached to to interrupt
     GPIO_INTERRUPT = ON; // enable intterupts for all gpio pins
 
-
+    //Setup ADC
+    ADC_VOLTAGE_REFERENCE = INTERNAL;
+    POT = OFF;
+    POT_PIN = INPUT;
+    POT_ADC = ON; // enable the adc on the pin the POT is on
+    ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 1; // Set the channel to AN3 (where the pot is connected)
+    ADC_CLOCK_SOURCE2 = 0; ADC_CLOCK_SOURCE1 = 0; ADC_CLOCK_SOURCE0 = 1; // Set the clock rate of the ADC
+    ADC_OUTPUT_FORMAT = 0; // Left Shifted ADC_RESULT_HIGH contains the first 8 bits
+    ADC_ON = ON; // turn it on
+    
    	GLOBAL_INTERRUPTS = ON;
 
     while (1)
     {
+    	// //ADC test
+   		// ADC_GODONE = ON; // begin an ADC conversion
+   		// while (!ADC_INTERRUPT_FLAG); // pause while the adc is running. XXX replace with interrupts
+   		// ADC_INTERRUPT_FLAG = OFF; // turn it off
+   		// led_duty_cycle = ADC_RESULT_HIGH; // load in 8bit number representing the voltage into the duty cycle for visualisation
+   		
     	// State code
     	if (delay_count >= timer0_delay) // runs approximately 1/1ms
    		{
@@ -98,14 +113,23 @@ void main()
    		}
    		
    		// Updating hardware code
-   		if (button_pressed)
+   		if (device_state == 0) // first state
    		{
-        	LED = led_state; // Make the PIN reflect the updated state
+       		// LED = led_state; // Make the PIN reflect the updated state
    		}
-   		else
-   		{
-   			LED = OFF; // if we aren't in the flashing state, just be off
-   		}
+  		else
+  		{
+  			ADC_GODONE = ON; // begin a conversion hopefully
+  			device_state = 0; // got back to first state 
+  			while (!ADC_INTERRUPT_FLAG); //wait for adc to finish
+  			ADC_INTERRUPT_FLAG = OFF;
+  			led_duty_cycle = ADC_RESULT_HIGH; // set duty
+
+  			// led_duty_cycle = 400; //otherwise, when I press the button, we go to a 400ms state
+  			// LED = OFF; // if we aren't in the flashing state, just be off
+  		}
+   		
+   		LED = led_state;
     }
     
     return;
