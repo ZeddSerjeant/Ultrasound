@@ -19,21 +19,27 @@ unsigned char timer0_initial= 0; // for timing smaller than a single time loop.
 unsigned char timer0_delay = 0; // for times longer than the timer itself
 unsigned char delay_count = 0; // for use with the above
 
-unsigned char button_state = 0;
+unsigned char button_pressed = 0; // pressing the button toggles this, rather than this reflecting the actual current state of the button. Probably change this name in the future to actually represent the difference modes I'll program
+unsigned char button_bounce = 200; // a number of interupts to allow ignoring button bounce [ms]
+unsigned char button_bounce_count = 0; // to increment to this value
 
 void interrupt ISR()
 {
 	if (TIMER0_INTERRUPT_FLAG) // if the timer0 interrupt flag was set (timer0 triggered)
 	{
 		TIMER0_INTERRUPT_FLAG = CLEAR; // clear interrupt flag since we are dealing with it
-		delay_count++; // increment time delay
 		TIMER0_COUNTER = timer0_initial + 2; // reset counter, but also add 2 since it takes 2 clock cycles to get going
-		
+		// move counters, which is the job of this timer interrupt
+		delay_count++; // increment time delay
 	}
-	else if (BUTTON_INTERRUPT_FLAG) // if the button has been pressed (Only IO Interrupt set)
+	if (BUTTON_INTERRUPT_FLAG) // if the button has been pressed (Only IO Interrupt set)
 	{
 		BUTTON_INTERRUPT_FLAG = CLEAR; // we are dealing with it
-		button_state = BUTTON; // save the value
+		if (!BUTTON && !button_bounce_count) // button was pressed and therefore this will read low (and we avoided bounce)
+		{
+			button_pressed = ~button_pressed; // toggle the stored button state so we can have an internal state based on it
+			button_bounce_count = button_bounce; // prevent this code from being triggered by the button bounce.
+		}
 	}
 }
 
@@ -55,17 +61,23 @@ void main()
     LED = led_state; // Initalize LED
 
     BUTTON_PIN = INPUT;
-    BUTTON_INTERRUPT = ON;
+    BUTTON_INTERRUPT = ON; // enable the pin the button is attached to to interrupt
+    GPIO_INTERRUPT = ON; // enable intterupts for all gpio pins
 
 
    	GLOBAL_INTERRUPTS = ON;
 
     while (1)
     {
+    	// State code
     	if (delay_count >= timer0_delay) // runs approximately 1/1ms
    		{
    			delay_count -= timer0_delay; // reset counter safely
    			led_duty_cycle_counter++; // increment the led counter
+   			if (button_bounce_count)
+			{
+				button_bounce_count--; // get closer to point in time that another button press can occur
+			}
 
    		}
    		if (led_duty_cycle_counter >= led_duty_cycle)
@@ -85,9 +97,15 @@ void main()
    			led_state = ON; // within On part of duty cycle
    		}
    		
-   		
-        LED = button_state; // Make the PIN reflect the updated state
-   		
+   		// Updating hardware code
+   		if (button_pressed)
+   		{
+        	LED = led_state; // Make the PIN reflect the updated state
+   		}
+   		else
+   		{
+   			LED = OFF; // if we aren't in the flashing state, just be off
+   		}
     }
     
     return;
