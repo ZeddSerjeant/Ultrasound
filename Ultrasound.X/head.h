@@ -5,6 +5,7 @@ enum FLAGS {OFF=0, CLEAR=0, INTERNAL=0, OUTPUT=0, INPUT=1, ON=1}; // Constants (
 // more readable
 #define PRESCALER PSA
 #define GLOBAL_INTERRUPTS GIE
+#define PING_PAUSE asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;")
 
 //TIMER0
 #define TIMER0_COUNTER TMR0
@@ -17,6 +18,8 @@ enum FLAGS {OFF=0, CLEAR=0, INTERNAL=0, OUTPUT=0, INPUT=1, ON=1}; // Constants (
 #define T1_PIN1 TRISIO0
 #define T12 GPIO1
 #define T1_PIN2 TRISIO1
+#define TRANSMIT_01 0x01
+#define TRANSMIT_10 0x02
 
 #define RECEIVER GPIO2
 #define RECEIVER_PIN TRISIO2

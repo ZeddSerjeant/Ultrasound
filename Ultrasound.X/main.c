@@ -10,7 +10,7 @@
 
 #include "head.h"
 
-unsigned char led_state = ON; // for ease of toggling
+unsigned char led_state = OFF; // for ease of toggling
 unsigned int led_duty_cycle = 250; // Duty cycle of LED as on_time[ms]
 unsigned int led_period = 500; // period of flashing LED [ms]
 unsigned int led_duty_cycle_counter = 0;
@@ -20,7 +20,7 @@ unsigned char timer0_delay = 0; // for times longer than the timer itself
 unsigned char delay_count = 0; // for use with the above
 
 unsigned char device_state = 0; // pressing the button toggles this
-unsigned char button_bounce = 200; // a number of interupts to allow ignoring button bounce [ms]
+unsigned char button_bounce = 200; // a number of interrupts to allow ignoring button bounce [ms]
 unsigned char button_bounce_count = 0; // to increment to this value
 
 void interrupt ISR()
@@ -40,11 +40,23 @@ void interrupt ISR()
 			device_state = ~device_state; // toggle the stored button state so we can have an internal state based on it
 			button_bounce_count = button_bounce; // prevent this code from being triggered by the button bounce.
 		}
+	}  
+	if (ADC_INTERRUPT_FLAG)
+	{
+		ADC_INTERRUPT_FLAG = CLEAR; // we are dealing with the interrupt
+		led_duty_cycle = ADC_RESULT_HIGH; // set duty
 	}
 }
 
 void main() 
 {	
+	//set up ping
+	unsigned int ping_delay = 1000; //[ms] ping ever 1000ms
+	unsigned int ping_delay_count = ping_delay;
+	T1_PIN1 = OUTPUT; // first transmit pin is output
+	T1_PIN2 = OUTPUT; // second transmit pin is output
+	RECEIVER_PIN = INPUT;
+
     // Set up the timer
     // calculate intial for accurate timing $ inital = TimerMax-((Delay*Fosc)/(Prescaler*4))
     // This shrinks timing smaller than directly prescaling for when thats necessary
@@ -64,7 +76,7 @@ void main()
     BUTTON_INTERRUPT = ON; // enable the pin the button is attached to to interrupt
     GPIO_INTERRUPT = ON; // enable intterupts for all gpio pins
 
-    //Setup ADC
+    //Set up ADC
     ADC_VOLTAGE_REFERENCE = INTERNAL;
     POT = OFF;
     POT_PIN = INPUT;
@@ -72,19 +84,42 @@ void main()
     ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 1; // Set the channel to AN3 (where the pot is connected)
     ADC_CLOCK_SOURCE2 = 0; ADC_CLOCK_SOURCE1 = 0; ADC_CLOCK_SOURCE0 = 1; // Set the clock rate of the ADC
     ADC_OUTPUT_FORMAT = 0; // Left Shifted ADC_RESULT_HIGH contains the first 8 bits
+    ADC_INTERRUPT = ON; // enable interrupts for the ADC
     ADC_ON = ON; // turn it on
     
    	GLOBAL_INTERRUPTS = ON;
 
     while (1)
     {
-    	// //ADC test
-   		// ADC_GODONE = ON; // begin an ADC conversion
-   		// while (!ADC_INTERRUPT_FLAG); // pause while the adc is running. XXX replace with interrupts
-   		// ADC_INTERRUPT_FLAG = OFF; // turn it off
-   		// led_duty_cycle = ADC_RESULT_HIGH; // load in 8bit number representing the voltage into the duty cycle for visualisation
-   		
+    	if (!ping_delay_count) // is it time to transmit a ping?
+    	{ 
+	    	// Ping code. This is done outside interrupts and loops when it occurs, as timing is crucial
+	    	GLOBAL_INTERRUPTS = OFF; // disable interrupts because that would break things in here
+	    	
+	    	// this happens 3 times hardcoded for speed
+	    	GPIO = TRANSMIT_01; // one pin up, the other one down
+	    	PING_PAUSE;
+	    	GPIO = TRANSMIT_10; // one pin up, the other one down
+	    	PING_PAUSE;
+
+	    	GPIO = TRANSMIT_01;
+	    	PING_PAUSE;
+	    	GPIO = TRANSMIT_10;
+	    	PING_PAUSE;
+
+	    	GPIO = TRANSMIT_01;
+	    	PING_PAUSE;
+	    	GPIO = TRANSMIT_10;
+	    	PING_PAUSE;
+
+	    	// clean up
+	    	ping_delay_count = ping_delay;
+	    	GPIO = 0x00; // turn off transmitter
+	    	GLOBAL_INTERRUPTS = ON; // turn these back on
+    	}
+
     	// State code
+    	// led with duty cycle
     	if (delay_count >= timer0_delay) // runs approximately 1/1ms
    		{
    			delay_count -= timer0_delay; // reset counter safely
@@ -92,6 +127,10 @@ void main()
    			if (button_bounce_count)
 			{
 				button_bounce_count--; // get closer to point in time that another button press can occur
+			}
+			if (ping_delay_count)
+			{
+				ping_delay_count--;
 			}
 
    		}
@@ -112,23 +151,21 @@ void main()
    			led_state = ON; // within On part of duty cycle
    		}
    		
-   		// Updating hardware code
-   		if (device_state == 0) // first state
+   		// State based on button
+   		if (device_state == 0) // first state, default
    		{
        		// LED = led_state; // Make the PIN reflect the updated state
    		}
-  		else
+  		else // enter this state when button is pressed
   		{
   			ADC_GODONE = ON; // begin a conversion hopefully
   			device_state = 0; // got back to first state 
-  			while (!ADC_INTERRUPT_FLAG); //wait for adc to finish
-  			ADC_INTERRUPT_FLAG = OFF;
-  			led_duty_cycle = ADC_RESULT_HIGH; // set duty
 
   			// led_duty_cycle = 400; //otherwise, when I press the button, we go to a 400ms state
   			// LED = OFF; // if we aren't in the flashing state, just be off
   		}
-   		
+
+   		// update hardware
    		LED = led_state;
     }
     
