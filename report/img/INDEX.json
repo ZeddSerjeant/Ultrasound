@@ -1,0 +1,10 @@
+{
+	"filename": "ultrasound_ping.jpg",
+	"description": "A ping emitting from the transmitter and the signal received by the receiver",
+	"blue_channel": "emitted ping, 3 cycles of a 40KHz signal",
+	"yellow_channel": "the received ping, also 40KHz but the apmplitude and phase varies",
+}
+
+{
+	"filename": "led_duty_cycle.jpg",
+}
