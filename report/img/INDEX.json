@@ -1,10 +1,55 @@
 {
-	"filename": "ultrasound_ping.jpg",
-	"description": "A ping emitting from the transmitter and the signal received by the receiver",
-	"blue_channel": "emitted ping, 3 cycles of a 40KHz signal",
-	"yellow_channel": "the received ping, also 40KHz but the apmplitude and phase varies",
-}
+	"dateless":
+	[
+		{
+			"filename": "ultrasound_ping.jpg",
+			"description": "A ping emitting from the transmitter and the signal received by the receiver",
+			"blue_channel": "emitted ping, 3 cycles of a 40KHz signal",
+			"yellow_channel": "the received ping, also 40KHz but the apmplitude and phase varies",
+		},
 
-{
-	"filename": "led_duty_cycle.jpg",
+		{
+			"filename": "led_duty_cycle.jpg",
+		}
+	],
+
+	"2020-03-10":
+	[
+		{
+			"filename": "IMAGE1",
+			"description": "Shows an initial scope image with a 3 cycle pulse and the received signal, the water is \\SI{14}{\\centi\\metres} from the transducers which corrosponds to a signal delay of \\SI{820}{\\micro\\seconds}",
+			"blue_channel": "received signal",
+			"yellow_channel": "transmitted signal",
+		},
+		{
+			"filename": "IMAGE2",
+			"description": "Same as IMAGE1 but with a single pulse",
+			"blue_channel": "received signal",
+			"yellow_channel": "transmitted signal",
+		},
+		{
+			"filename": "IMAGE3",
+			"description": "The water is further from the transducer, at \\SI{18.1}{\\centi\\metres} and \\SI{860}{\\micro\\seconds}",
+			"blue_channel": "received signal",
+			"yellow_channel": "transmitted signal",
+		},
+		{
+			"filename": "IMAGE3-reference",
+			"description": "Same as IMAGE3 but with a reference plotted from behind it of IMAGE1",
+			"blue_channel": "received signal",
+			"yellow_channel": "transmitted signal",
+		},
+		{
+			"filename": "IMAGE4",
+			"description": "A zoomed version because phase is useful. The water was allowed to move \\SI{1.1}{\\centi\\metres} from the reference, and this corrosponds to \\SI{72}{\\micro\\seconds}",
+			"blue_channel": "received signal",
+			"yellow_channel": "transmitted signal",
+		},
+		{
+			"filename": "IMAGE5",
+			"description": "A single cycle is measured, which is approx \\SI{25}{\\micro\\seconds}, which makes sense as this is a \\SI{40}{\\kilo\\hertz} wave. This corrosponds to a water level difference of between \\SI{3}{\\milli\metres} and \\SI{4}{\\milli\\metres}",
+			"blue_channel": "received signal",
+			"yellow_channel": "transmitted signal",
+		},
+	],
 }

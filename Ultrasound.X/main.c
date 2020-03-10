@@ -76,11 +76,13 @@ void main()
     BUTTON_INTERRUPT = ON; // enable the pin the button is attached to to interrupt
     GPIO_INTERRUPT = ON; // enable intterupts for all gpio pins
 
-    //Set up ADC
-    ADC_VOLTAGE_REFERENCE = INTERNAL;
+    //set up POT
     POT = OFF;
     POT_PIN = INPUT;
     POT_ADC = ON; // enable the adc on the pin the POT is on
+
+    //Set up ADC
+    ADC_VOLTAGE_REFERENCE = INTERNAL;
     ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 1; // Set the channel to AN3 (where the pot is connected)
     ADC_CLOCK_SOURCE2 = 0; ADC_CLOCK_SOURCE1 = 0; ADC_CLOCK_SOURCE0 = 1; // Set the clock rate of the ADC
     ADC_OUTPUT_FORMAT = 0; // Left Shifted ADC_RESULT_HIGH contains the first 8 bits
@@ -102,15 +104,15 @@ void main()
 	    	GPIO = TRANSMIT_10; // one pin up, the other one down
 	    	PING_PAUSE;
 
-	    	GPIO = TRANSMIT_01;
-	    	PING_PAUSE;
-	    	GPIO = TRANSMIT_10;
-	    	PING_PAUSE;
+	    	// GPIO = TRANSMIT_01;
+	    	// PING_PAUSE;
+	    	// GPIO = TRANSMIT_10;
+	    	// PING_PAUSE;
 
-	    	GPIO = TRANSMIT_01;
-	    	PING_PAUSE;
-	    	GPIO = TRANSMIT_10;
-	    	PING_PAUSE;
+	    	// GPIO = TRANSMIT_01;
+	    	// PING_PAUSE;
+	    	// GPIO = TRANSMIT_10;
+	    	// PING_PAUSE;
 
 	    	// clean up
 	    	ping_delay_count = ping_delay;
