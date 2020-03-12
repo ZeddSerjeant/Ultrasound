@@ -9,6 +9,7 @@
 #pragma config CPD = OFF        // Data Code Protection bit (Data memory code protection is disabled)
 
 #include "head.h"
+unsigned char led_state2 = 0; // as a test state for parts of the code, so I don't have to disable the duty cycle
 
 unsigned char led_state = OFF; // for ease of toggling
 unsigned int led_duty_cycle = 250; // Duty cycle of LED as on_time[ms]
@@ -19,18 +20,19 @@ unsigned char timer0_initial= 0; // for timing smaller than a single time loop.
 unsigned char timer0_delay = 0; // for times longer than the timer itself
 unsigned char delay_count = 0; // for use with the above
 
-unsigned char device_state = 0; // pressing the button toggles this
+unsigned char device_state = 0; // pressing the button alters state
 unsigned char button_bounce = 200; // a number of interrupts to allow ignoring button bounce [ms]
 unsigned char button_bounce_count = 0; // to increment to this value
 
-unsigned char process_delay = 0; // [ms]for delaying the time to begin processing the return signal
-
-unsigned char timer_high = 0xFF;
-unsigned char timer_low = 0x37; // so that time delays can be adjusted
+unsigned char timer_high = 0xFE;
+unsigned char timer_low = 0xD3; // so that time delays can be adjusted
 
 unsigned char read_voltage = 0; // XXX a test value to see if I can read thresholds in the return value
-unsigned char read_threshold = 20; // XXX the threshold for the previous variable
+unsigned int read_threshold = 0; // XXX the threshold for the previous variable
 unsigned char detect_state = 0;
+signed int receiver_dc_offset = 0; // set on calibration
+
+unsigned char readings[2]; // an array for storing ADC results
 
 void interrupt ISR()
 {
@@ -40,7 +42,6 @@ void interrupt ISR()
 		TIMER0_COUNTER = timer0_initial + 2; // reset counter, but also add 2 since it takes 2 clock cycles to get going
 		// move counters, which is the job of this timer interrupt
 		delay_count++; // increment time delay
-		process_delay = ~process_delay; // toggle this directly for this information
 	}
 	if (BUTTON_INTERRUPT_FLAG) // if the button has been pressed (Only IO Interrupt set)
 	{
@@ -56,6 +57,27 @@ void interrupt ISR()
 	// 	ADC_INTERRUPT_FLAG = CLEAR; // we are dealing with the interrupt
 	// 	led_duty_cycle = ADC_RESULT_HIGH; // set duty
 	// }
+}
+
+void runCalibration() //pull a threshold from the POT and set the DC bias of the receiver
+{
+	led_state2 = ~led_state2; // toggle an indicator that calibration has run
+
+	ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 1; // Set the channel to AN3 (where the POT is)
+	ADC_GODONE = ON; // begin a conversion
+	
+	while (ADC_GODONE); // wait till its done
+
+	read_threshold = (unsigned int)ADC_RESULT_HIGH; // store a new threshold based on this value
+	led_duty_cycle = read_threshold; //TTT
+	// read_threshold *= read_threshold;
+
+	ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 0; // Set the channel back to AN2 (where the receiver is)
+
+	ADC_GODONE = ON; // begin a reading of the ADC, to set the midpoint of the receiver
+	while (ADC_GODONE); // wait till its done
+	
+	receiver_dc_offset = (signed int)ADC_RESULT_HIGH; // store the offset
 }
 
 void main() 
@@ -80,7 +102,7 @@ void main()
    	TIMER0_INTERRUPT = ON; // enable timer0 interrupts
 
    	// set up timer1
-   	TIMER1_COUNTER_HIGH = timer_high; TIMER1_COUNTER_LOW = timer_low; // assign a value, this causes approximately a 200us count
+   	TIMER1_COUNTER_HIGH = 0; TIMER1_COUNTER_LOW = 0; // initialise at 0 because we use this for a callibration delay first (65ms)
    	// TIMER1 = ON; // begin a count down
 
    	//Set up IO
@@ -103,51 +125,87 @@ void main()
     ADC_OUTPUT_FORMAT = 0; // Left Shifted ADC_RESULT_HIGH contains the first 8 bits
     ADC_INTERRUPT = OFF; // by default these aren't necessary
     ADC_ON = ON; // turn it on
+
+    //set up calc variables
+    signed int sample1, sample2; // the 2 sample from which to calculate the magnitude of the wave
+    signed int magnitude; 
     
+    //calibration
+    TIMER1 = ON;
+    while (!TIMER1_INTERRUPT_FLAG); // wait a couple hundred us so the device is ready
+    TIMER1_INTERRUPT_FLAG = 0;
+
+	TIMER1_COUNTER_HIGH = timer_high; TIMER1_COUNTER_LOW = timer_low;// assign a value, this causes approximately a 200us count
+    runCalibration(); // pull a threshold from the POT and set the DC bias
+					    
    	GLOBAL_INTERRUPTS = ON;
 
     while (1)
     {
-    	if (!ping_delay_count) // is it time to transmit a ping?
-    	{ 
-	    	// Ping code. This is done outside interrupts and loops when it occurs, as timing is crucial
-	    	GLOBAL_INTERRUPTS = OFF; // disable interrupts because that would break things in here
+    	// State based on button
+   		if (device_state) // enter this state when button is pressed, recalibrating the device
+  		{
+  			GLOBAL_INTERRUPTS = OFF;
+
+  			runCalibration();
+  			device_state = 0; // got back to first state 
+
+  			GLOBAL_INTERRUPTS = ON;
+  		}
+
+    	// if (!ping_delay_count) // is it time to transmit a ping?
+    	// { 
+	    // 	// Ping code. This is done outside interrupts and loops when it occurs, as timing is crucial
+	    // 	GLOBAL_INTERRUPTS = OFF; // disable interrupts because that would break things in here
 	    	
-	    	// A single pulse is enough energy for this simple system
-	    	GPIO = TRANSMIT_01; // one pin up, the other one down
-	    	PING_PAUSE;
-	    	GPIO = TRANSMIT_10; // one pin up, the other one down
-	    	PING_PAUSE;
+	    // 	// A single pulse is enough energy for this simple system
+	    // 	GPIO = TRANSMIT_01; // one pin up, the other one down
+	    // 	PING_PAUSE;
+	    // 	GPIO = TRANSMIT_10; // one pin up, the other one down
+	    // 	PING_PAUSE;
 
-	    	// Now wait long enough to read a value. XXX this is a simple test of the ADC
-	    	TIMER1_COUNTER_HIGH = timer_high; TIMER1_COUNTER_LOW = timer_low;
-	    	TIMER1 = ON; // begin a count down
-   			while (!TIMER1_INTERRUPT_FLAG); //wait
+	    // 	// Now wait long enough to read a value. XXX this is a simple test of the ADC
+	    // 	TIMER1_COUNTER_HIGH = timer_high; TIMER1_COUNTER_LOW = timer_low;
+	    // 	TIMER1 = ON; // begin a count down
+   		// 	while (!TIMER1_INTERRUPT_FLAG); //wait
 
-	    	ADC_GODONE = ON; // begin a reading
-	    	//reset
-	    	TIMER1_INTERRUPT_FLAG = 0;
-	    	TIMER1 = OFF;
+   		// 	// first sample 
+	    // 	ADC_GODONE = ON; // begin a reading 1us
+	    // 	//reset
+	    // 	TIMER1_INTERRUPT_FLAG = 0;
+	    // 	TIMER1 = OFF;
 
-	    	while(!ADC_INTERRUPT_FLAG); // wait for the remaining time till we get the ADC reading
-	    	ADC_INTERRUPT_FLAG = 0;
+	    // 	while(!ADC_INTERRUPT_FLAG); // wait for the remaining time till we get the ADC reading 22us+3us 
+	    // 	ADC_INTERRUPT_FLAG = 0; // 1us
 
-	    	if (ADC_RESULT_HIGH > read_threshold)
-	    	{
-	    		read_voltage = ADC_RESULT_HIGH;
-	    		detect_state = 1;
-	    	}
-	    	else
-	    	{
-	    		detect_state = 0;
-	    	}
+	    // 	readings[0] = ADC_RESULT_HIGH; //2us
+
+	    // 	// second sample
+	    // 	ADC_GODONE = ON; // begin a reading 1us
+	    // 	//reset
+	    // 	TIMER1_INTERRUPT_FLAG = 0;
+	    // 	TIMER1 = OFF;
+
+	    // 	while(!ADC_INTERRUPT_FLAG); // wait for the remaining time till we get the ADC reading 22us+3us 
+	    // 	ADC_INTERRUPT_FLAG = 0; // 1us
+
+	    // 	readings[1] = ADC_RESULT_HIGH; //2us
+	    	
 
 
-	    	// clean up
-	    	ping_delay_count = ping_delay;
-	    	GPIO = 0x00; // turn off transmitter
-	    	GLOBAL_INTERRUPTS = ON; // turn these back on
-    	}
+	    // 	// clean up
+	    // 	ping_delay_count = ping_delay;
+	    // 	GPIO = 0x00; // turn off transmitter
+	    // 	GLOBAL_INTERRUPTS = ON; // turn these back on
+
+	    // 	//calculations can happen here because now timers can increment
+	    // 	sample1 = (signed int)readings[0] - receiver_dc_offset; // convert reading and remove dc bias
+	    // 	sample2 = (signed int)readings[1] - receiver_dc_offset; // convert reading and remove dc bias
+
+	    // 	//ideally these are 90deg apart because of the previous code, and so RSS should give us amplitude
+	    // 	magnitude = sample1*sample1 + sample2*sample2;
+  		
+    	// }
 
     	// State code
     	// led with duty cycle
@@ -181,31 +239,8 @@ void main()
    		{
    			led_state = ON; // within On part of duty cycle
    		}
-   		
-   		// State based on button
-   		if (device_state == 0) // first state, default
-   		{
-       		// LED = led_state; // Make the PIN reflect the updated state
-   		}
-  		else // enter this state when button is pressed
-  		{
-  			ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 1; // Set the channel to AN3 (where the POT is)
-  			ADC_GODONE = ON; // begin a conversion
-  			
-  			while (!ADC_INTERRUPT_FLAG); // wait till its done
-  			ADC_INTERRUPT_FLAG = 0;
 
-  			read_threshold = ADC_RESULT_HIGH; // store a new threshold based on this value
-
-  			ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 0; // Set the channel back to AN2 (where the receiver is)
-  			device_state = 0; // got back to first state 
-
-  			// led_duty_cycle = 400; //otherwise, when I press the button, we go to a 400ms state
-  			// LED = OFF; // if we aren't in the flashing state, just be off
-  		}
-
-   		// update hardware
-   		LED = detect_state;
+   		LED = led_state;
     }
     
     return;
