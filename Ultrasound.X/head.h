@@ -5,13 +5,23 @@ enum FLAGS {OFF=0, CLEAR=0, INTERNAL=0, OUTPUT=0, INPUT=1, ON=1}; // Constants (
 // more readable
 #define PRESCALER PSA
 #define GLOBAL_INTERRUPTS GIE
+// this will take approximately 11 cycles of time
 #define PING_PAUSE asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;")
+#define CORE_CLOCK OSCCAL 
 
 //TIMER0
 #define TIMER0_COUNTER TMR0
 #define TIMER0_CLOCK_SCOURCE T0CS
 #define TIMER0_INTERRUPT T0IE
 #define TIMER0_INTERRUPT_FLAG TMR0IF
+
+//TIMER1
+#define TIMER1 TMR1ON
+#define TIMER1_PRE0 T1CKPS0
+#define TIMER1_PRE1 T1CKPS1
+#define TIMER1_INTERRUPT_FLAG TMR1IF
+#define TIMER1_COUNTER_LOW TMR1L
+#define TIMER1_COUNTER_HIGH TMR1H
 
 //Ultrasonic Transducer
 #define T11 GPIO0
@@ -23,6 +33,7 @@ enum FLAGS {OFF=0, CLEAR=0, INTERNAL=0, OUTPUT=0, INPUT=1, ON=1}; // Constants (
 
 #define RECEIVER GPIO2
 #define RECEIVER_PIN TRISIO2
+#define RECEIVER_ADC ANS2
 
 //Button
 #define BUTTON GPIO3

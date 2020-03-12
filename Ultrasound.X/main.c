@@ -23,6 +23,15 @@ unsigned char device_state = 0; // pressing the button toggles this
 unsigned char button_bounce = 200; // a number of interrupts to allow ignoring button bounce [ms]
 unsigned char button_bounce_count = 0; // to increment to this value
 
+unsigned char process_delay = 0; // [ms]for delaying the time to begin processing the return signal
+
+unsigned char timer_high = 0xFF;
+unsigned char timer_low = 0x37; // so that time delays can be adjusted
+
+unsigned char read_voltage = 0; // XXX a test value to see if I can read thresholds in the return value
+unsigned char read_threshold = 20; // XXX the threshold for the previous variable
+unsigned char detect_state = 0;
+
 void interrupt ISR()
 {
 	if (TIMER0_INTERRUPT_FLAG) // if the timer0 interrupt flag was set (timer0 triggered)
@@ -31,6 +40,7 @@ void interrupt ISR()
 		TIMER0_COUNTER = timer0_initial + 2; // reset counter, but also add 2 since it takes 2 clock cycles to get going
 		// move counters, which is the job of this timer interrupt
 		delay_count++; // increment time delay
+		process_delay = ~process_delay; // toggle this directly for this information
 	}
 	if (BUTTON_INTERRUPT_FLAG) // if the button has been pressed (Only IO Interrupt set)
 	{
@@ -41,32 +51,37 @@ void interrupt ISR()
 			button_bounce_count = button_bounce; // prevent this code from being triggered by the button bounce.
 		}
 	}  
-	if (ADC_INTERRUPT_FLAG)
-	{
-		ADC_INTERRUPT_FLAG = CLEAR; // we are dealing with the interrupt
-		led_duty_cycle = ADC_RESULT_HIGH; // set duty
-	}
+	// if (ADC_INTERRUPT_FLAG)
+	// {
+	// 	ADC_INTERRUPT_FLAG = CLEAR; // we are dealing with the interrupt
+	// 	led_duty_cycle = ADC_RESULT_HIGH; // set duty
+	// }
 }
 
 void main() 
 {	
 	//set up ping
-	unsigned int ping_delay = 1000; //[ms] ping ever 1000ms
+	unsigned int ping_delay = 500; //[ms] ping ever 1000ms
 	unsigned int ping_delay_count = ping_delay;
 	T1_PIN1 = OUTPUT; // first transmit pin is output
 	T1_PIN2 = OUTPUT; // second transmit pin is output
 	RECEIVER_PIN = INPUT;
+	RECEIVER_ADC = ON; // enable this to be used with the ADC
 
-    // Set up the timer
+    // Set up timer0
     // calculate intial for accurate timing $ inital = TimerMax-((Delay*Fosc)/(Prescaler*4))
     // This shrinks timing smaller than directly prescaling for when thats necessary
-    timer0_initial = 220;
+    timer0_initial = 220; // the interrupt triggers every 
     timer0_delay = 4; // for 1ms and prescaler of 1:8 (adjusted empirically)
    	TIMER0_COUNTER = timer0_initial; // set counter
    	TIMER0_CLOCK_SCOURCE = INTERNAL; // internal clock
    	PRESCALER = 0; // enable prescaler for Timer0
     PS2=0; PS1=1; PS0=0; // Set prescaler to 1:8
    	TIMER0_INTERRUPT = ON; // enable timer0 interrupts
+
+   	// set up timer1
+   	TIMER1_COUNTER_HIGH = timer_high; TIMER1_COUNTER_LOW = timer_low; // assign a value, this causes approximately a 200us count
+   	// TIMER1 = ON; // begin a count down
 
    	//Set up IO
    	LED_PIN = OUTPUT; // Set LED (GPIO5) to output directly. Slower with more outputs, but more readable
@@ -83,10 +98,10 @@ void main()
 
     //Set up ADC
     ADC_VOLTAGE_REFERENCE = INTERNAL;
-    ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 1; // Set the channel to AN3 (where the pot is connected)
+    ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 0; // Set the channel to AN2 (where the receiver is)
     ADC_CLOCK_SOURCE2 = 0; ADC_CLOCK_SOURCE1 = 0; ADC_CLOCK_SOURCE0 = 1; // Set the clock rate of the ADC
     ADC_OUTPUT_FORMAT = 0; // Left Shifted ADC_RESULT_HIGH contains the first 8 bits
-    ADC_INTERRUPT = ON; // enable interrupts for the ADC
+    ADC_INTERRUPT = OFF; // by default these aren't necessary
     ADC_ON = ON; // turn it on
     
    	GLOBAL_INTERRUPTS = ON;
@@ -98,21 +113,35 @@ void main()
 	    	// Ping code. This is done outside interrupts and loops when it occurs, as timing is crucial
 	    	GLOBAL_INTERRUPTS = OFF; // disable interrupts because that would break things in here
 	    	
-	    	// this happens 3 times hardcoded for speed
+	    	// A single pulse is enough energy for this simple system
 	    	GPIO = TRANSMIT_01; // one pin up, the other one down
 	    	PING_PAUSE;
 	    	GPIO = TRANSMIT_10; // one pin up, the other one down
 	    	PING_PAUSE;
 
-	    	// GPIO = TRANSMIT_01;
-	    	// PING_PAUSE;
-	    	// GPIO = TRANSMIT_10;
-	    	// PING_PAUSE;
+	    	// Now wait long enough to read a value. XXX this is a simple test of the ADC
+	    	TIMER1_COUNTER_HIGH = timer_high; TIMER1_COUNTER_LOW = timer_low;
+	    	TIMER1 = ON; // begin a count down
+   			while (!TIMER1_INTERRUPT_FLAG); //wait
 
-	    	// GPIO = TRANSMIT_01;
-	    	// PING_PAUSE;
-	    	// GPIO = TRANSMIT_10;
-	    	// PING_PAUSE;
+	    	ADC_GODONE = ON; // begin a reading
+	    	//reset
+	    	TIMER1_INTERRUPT_FLAG = 0;
+	    	TIMER1 = OFF;
+
+	    	while(!ADC_INTERRUPT_FLAG); // wait for the remaining time till we get the ADC reading
+	    	ADC_INTERRUPT_FLAG = 0;
+
+	    	if (ADC_RESULT_HIGH > read_threshold)
+	    	{
+	    		read_voltage = ADC_RESULT_HIGH;
+	    		detect_state = 1;
+	    	}
+	    	else
+	    	{
+	    		detect_state = 0;
+	    	}
+
 
 	    	// clean up
 	    	ping_delay_count = ping_delay;
@@ -160,7 +189,15 @@ void main()
    		}
   		else // enter this state when button is pressed
   		{
-  			ADC_GODONE = ON; // begin a conversion hopefully
+  			ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 1; // Set the channel to AN3 (where the POT is)
+  			ADC_GODONE = ON; // begin a conversion
+  			
+  			while (!ADC_INTERRUPT_FLAG); // wait till its done
+  			ADC_INTERRUPT_FLAG = 0;
+
+  			read_threshold = ADC_RESULT_HIGH; // store a new threshold based on this value
+
+  			ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 0; // Set the channel back to AN2 (where the receiver is)
   			device_state = 0; // got back to first state 
 
   			// led_duty_cycle = 400; //otherwise, when I press the button, we go to a 400ms state
@@ -168,7 +205,7 @@ void main()
   		}
 
    		// update hardware
-   		LED = led_state;
+   		LED = detect_state;
     }
     
     return;
