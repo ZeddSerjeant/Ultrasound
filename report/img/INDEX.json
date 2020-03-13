@@ -47,7 +47,7 @@
 		},
 		{
 			"filename": "IMAGE5",
-			"description": "A single cycle is measured, which is approx \\SI{25}{\\micro\\seconds}, which makes sense as this is a \\SI{40}{\\kilo\\hertz} wave. This corrosponds to a water level difference of between \\SI{3}{\\milli\metres} and \\SI{4}{\\milli\\metres}",
+			"description": "A single cycle is measured, which is approx \\SI{25}{\\micro\\seconds}, which makes sense as this is a \\SI{40}{\\kilo\\hertz} wave. This corrosponds to a water level difference of between \\SI{3}{\\milli\\metres} and \\SI{4}{\\milli\\metres}",
 			"blue_channel": "received signal",
 			"yellow_channel": "transmitted signal",
 		},

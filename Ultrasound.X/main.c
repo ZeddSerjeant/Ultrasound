@@ -9,27 +9,24 @@
 #pragma config CPD = OFF        // Data Code Protection bit (Data memory code protection is disabled)
 
 #include "head.h"
-unsigned char led_state2 = 0; // as a test state for parts of the code, so I don't have to disable the duty cycle
 
-unsigned char led_state = OFF; // for ease of toggling
-unsigned int led_duty_cycle = 250; // Duty cycle of LED as on_time[ms]
-unsigned int led_period = 500; // period of flashing LED [ms]
+bit led_state = OFF; // for ease of toggling
+unsigned int led_duty_cycle = 0; // Duty cycle of LED as on_time[ms]
+const unsigned int led_period = 1000; // period of flashing LED [ms]
 unsigned int led_duty_cycle_counter = 0;
 
 unsigned char timer0_initial= 0; // for timing smaller than a single time loop.
 unsigned char timer0_delay = 0; // for times longer than the timer itself
 unsigned char delay_count = 0; // for use with the above
 
-unsigned char device_state = 0; // pressing the button alters state
-unsigned char button_bounce = 200; // a number of interrupts to allow ignoring button bounce [ms]
+bit device_state = 0; // pressing the button alters state
+const unsigned char button_bounce = 200; // a number of interrupts to allow ignoring button bounce [ms]
 unsigned char button_bounce_count = 0; // to increment to this value
 
 unsigned char timer_high = 0xFE;
-unsigned char timer_low = 0xD3; // so that time delays can be adjusted
+unsigned char timer_low = 0x3D; // so that time delays can be adjusted
 
-unsigned char read_voltage = 0; // XXX a test value to see if I can read thresholds in the return value
 unsigned int read_threshold = 0; // XXX the threshold for the previous variable
-unsigned char detect_state = 0;
 signed int receiver_dc_offset = 0; // set on calibration
 
 unsigned char readings[2]; // an array for storing ADC results
@@ -61,19 +58,17 @@ void interrupt ISR()
 
 void runCalibration() //pull a threshold from the POT and set the DC bias of the receiver
 {
-	led_state2 = ~led_state2; // toggle an indicator that calibration has run
-
 	ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 1; // Set the channel to AN3 (where the POT is)
+	PAUSE; // give the adc time to point at the new channel
 	ADC_GODONE = ON; // begin a conversion
 	
 	while (ADC_GODONE); // wait till its done
 
 	read_threshold = (unsigned int)ADC_RESULT_HIGH; // store a new threshold based on this value
-	led_duty_cycle = read_threshold; //TTT
-	// read_threshold *= read_threshold;
+	read_threshold *= read_threshold;
 
 	ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 0; // Set the channel back to AN2 (where the receiver is)
-
+	PAUSE; // give the adc time to point at the new channel
 	ADC_GODONE = ON; // begin a reading of the ADC, to set the midpoint of the receiver
 	while (ADC_GODONE); // wait till its done
 	
@@ -83,7 +78,7 @@ void runCalibration() //pull a threshold from the POT and set the DC bias of the
 void main() 
 {	
 	//set up ping
-	unsigned int ping_delay = 500; //[ms] ping ever 1000ms
+	unsigned int ping_delay = 2000; //[ms] ping ever 1000ms
 	unsigned int ping_delay_count = ping_delay;
 	T1_PIN1 = OUTPUT; // first transmit pin is output
 	T1_PIN2 = OUTPUT; // second transmit pin is output
@@ -120,7 +115,7 @@ void main()
 
     //Set up ADC
     ADC_VOLTAGE_REFERENCE = INTERNAL;
-    ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 0; // Set the channel to AN2 (where the receiver is)
+    ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 0; // Set the channel to AN3 (where the POT is)
     ADC_CLOCK_SOURCE2 = 0; ADC_CLOCK_SOURCE1 = 0; ADC_CLOCK_SOURCE0 = 1; // Set the clock rate of the ADC
     ADC_OUTPUT_FORMAT = 0; // Left Shifted ADC_RESULT_HIGH contains the first 8 bits
     ADC_INTERRUPT = OFF; // by default these aren't necessary
@@ -128,7 +123,7 @@ void main()
 
     //set up calc variables
     signed int sample1, sample2; // the 2 sample from which to calculate the magnitude of the wave
-    signed int magnitude; 
+    signed long int magnitude;
     
     //calibration
     TIMER1 = ON;
@@ -153,59 +148,70 @@ void main()
   			GLOBAL_INTERRUPTS = ON;
   		}
 
-    	// if (!ping_delay_count) // is it time to transmit a ping?
-    	// { 
-	    // 	// Ping code. This is done outside interrupts and loops when it occurs, as timing is crucial
-	    // 	GLOBAL_INTERRUPTS = OFF; // disable interrupts because that would break things in here
+    	if (!ping_delay_count) // is it time to transmit a ping?
+    	{ 
+	    	// Ping code. This is done outside interrupts and loops when it occurs, as timing is crucial
+	    	GLOBAL_INTERRUPTS = OFF; // disable interrupts because that would break things in here
 	    	
-	    // 	// A single pulse is enough energy for this simple system
-	    // 	GPIO = TRANSMIT_01; // one pin up, the other one down
-	    // 	PING_PAUSE;
-	    // 	GPIO = TRANSMIT_10; // one pin up, the other one down
-	    // 	PING_PAUSE;
+	    	// A single pulse is enough energy for this simple system
+	    	GPIO = TRANSMIT_01; // one pin up, the other one down
+	    	PAUSE;
+	    	GPIO = TRANSMIT_10; // one pin up, the other one down
+	    	PAUSE;
 
-	    // 	// Now wait long enough to read a value. XXX this is a simple test of the ADC
-	    // 	TIMER1_COUNTER_HIGH = timer_high; TIMER1_COUNTER_LOW = timer_low;
-	    // 	TIMER1 = ON; // begin a count down
-   		// 	while (!TIMER1_INTERRUPT_FLAG); //wait
+	    	// Now wait long enough to read a value. XXX this is a simple test of the ADC
+	    	TIMER1_COUNTER_HIGH = timer_high; TIMER1_COUNTER_LOW = timer_low;
+	    	TIMER1 = ON; // begin a count down
+   			while (!TIMER1_INTERRUPT_FLAG); //wait
 
-   		// 	// first sample 
-	    // 	ADC_GODONE = ON; // begin a reading 1us
-	    // 	//reset
-	    // 	TIMER1_INTERRUPT_FLAG = 0;
-	    // 	TIMER1 = OFF;
+   			// first sample 
+	    	ADC_GODONE = ON; // begin a reading 1us
+	    	LED = ON; //TTT see when the samples are
+	    	//reset
+	    	TIMER1_INTERRUPT_FLAG = 0;
+	    	TIMER1 = OFF;
 
-	    // 	while(!ADC_INTERRUPT_FLAG); // wait for the remaining time till we get the ADC reading 22us+3us 
-	    // 	ADC_INTERRUPT_FLAG = 0; // 1us
+	    	while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
 
-	    // 	readings[0] = ADC_RESULT_HIGH; //2us
+	    	readings[0] = ADC_RESULT_HIGH; //2us
 
-	    // 	// second sample
-	    // 	ADC_GODONE = ON; // begin a reading 1us
-	    // 	//reset
-	    // 	TIMER1_INTERRUPT_FLAG = 0;
-	    // 	TIMER1 = OFF;
+	    	// second sample
+	    	ADC_PAUSE; // XXX apparently mine is going very fast????
+	    	ADC_GODONE = ON; // begin a reading 1us
+	    	LED = OFF; //TTT see when the samples are
 
-	    // 	while(!ADC_INTERRUPT_FLAG); // wait for the remaining time till we get the ADC reading 22us+3us 
-	    // 	ADC_INTERRUPT_FLAG = 0; // 1us
+	    	while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
 
-	    // 	readings[1] = ADC_RESULT_HIGH; //2us
+	    	readings[1] = ADC_RESULT_HIGH; //2us
 	    	
 
 
-	    // 	// clean up
-	    // 	ping_delay_count = ping_delay;
-	    // 	GPIO = 0x00; // turn off transmitter
-	    // 	GLOBAL_INTERRUPTS = ON; // turn these back on
+	    	// clean up
+	    	ping_delay_count = ping_delay;
+	    	GPIO = 0x00; // turn off transmitter
+	    	GLOBAL_INTERRUPTS = ON; // turn these back on
 
-	    // 	//calculations can happen here because now timers can increment
-	    // 	sample1 = (signed int)readings[0] - receiver_dc_offset; // convert reading and remove dc bias
-	    // 	sample2 = (signed int)readings[1] - receiver_dc_offset; // convert reading and remove dc bias
+	    	//calculations can happen here because now timers can increment
+	    	sample1 = (signed int)readings[0] * 19; // convert reading into sample in mV (19 ~ 5000/256)
+	    	sample1 -= receiver_dc_offset * 19; // remove dc bias
+	    	
+	    	sample2 = (signed int)readings[1] * 19; // convert reading into sample in mV
+	    	sample2 -= receiver_dc_offset * 19; // remove dc bias
 
-	    // 	//ideally these are 90deg apart because of the previous code, and so RSS should give us amplitude
-	    // 	magnitude = sample1*sample1 + sample2*sample2;
+	    	//ideally these are 90deg apart because of the previous code, and so RSS should give us amplitude
+	    	magnitude = (signed long int)sample1*sample1 + (signed long int)sample2*sample2;
+
+	    	// if (sample1 > 0)
+	    	// {
+		    // 	led_duty_cycle = sample1; // show a divided magnitude to see if it is properly proportional
+		    // }
+		    // else
+		    // {
+		    // 	led_duty_cycle = -1 * sample1;
+		    // }
+		    led_duty_cycle = magnitude>>7;
   		
-    	// }
+    	}
 
     	// State code
     	// led with duty cycle
