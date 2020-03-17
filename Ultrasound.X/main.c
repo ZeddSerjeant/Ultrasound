@@ -11,6 +11,7 @@
 #include "head.h"
 
 bit led_state = OFF; // for ease of toggling
+bit led_state2 = OFF; // TTT
 unsigned int led_duty_cycle = 0; // Duty cycle of LED as on_time[ms]
 const unsigned int led_period = 1000; // period of flashing LED [ms]
 unsigned int led_duty_cycle_counter = 0;
@@ -23,13 +24,24 @@ bit device_state = 0; // pressing the button alters state
 const unsigned char button_bounce = 200; // a number of interrupts to allow ignoring button bounce [ms]
 unsigned char button_bounce_count = 0; // to increment to this value
 
-unsigned char timer_high = 0xFE;
-unsigned char timer_low = 0x3D; // so that time delays can be adjusted
+union time // a union is used for ease of adjusting the range whiles assigning the values to the timer
+{
+	unsigned short int range;
+	struct
+	{
+		unsigned char low_byte;
+		unsigned char high_byte;
+	};
+} range_to_target; // this represents the value to initialise timer1 to, so that it counts down approximately the value after the subtraction. This is the range as this is increased to search further away, and will represent the time/distance to the object when it is found
+const unsigned char range_band = 61; // [us] to begin with, I'm doing a linear search which will proceed in steps of this, which is about 10mm
+const unsigned char initial_range = 200; // [us] the range from the transducer to begin searching for objects
 
-unsigned int read_threshold = 0; // XXX the threshold for the previous variable
-signed int receiver_dc_offset = 0; // set on calibration
+unsigned short int read_threshold = 0; // XXX the threshold for the previous variable
+unsigned short int receiver_dc_offset = 0; // set on calibration
 
-unsigned char readings[2]; // an array for storing ADC results
+unsigned char readings[4]; // an array for storing ADC results
+
+const unsigned int ping_delay = 20; //[ms]
 
 void interrupt ISR()
 {
@@ -64,21 +76,20 @@ void runCalibration() //pull a threshold from the POT and set the DC bias of the
 	
 	while (ADC_GODONE); // wait till its done
 
-	read_threshold = (unsigned int)ADC_RESULT_HIGH; // store a new threshold based on this value
-	read_threshold *= read_threshold;
+	read_threshold = (unsigned short int)ADC_RESULT_HIGH; // store a new threshold based on this value
+	read_threshold = read_threshold*read_threshold; // square the value for comparison with magnitude squared later, with 20**2 for conversion to mv
 
 	ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 0; // Set the channel back to AN2 (where the receiver is)
 	PAUSE; // give the adc time to point at the new channel
 	ADC_GODONE = ON; // begin a reading of the ADC, to set the midpoint of the receiver
 	while (ADC_GODONE); // wait till its done
 	
-	receiver_dc_offset = (signed int)ADC_RESULT_HIGH; // store the offset
+	receiver_dc_offset = (unsigned short int)ADC_RESULT_HIGH; // store the offset
 }
 
 void main() 
 {	
 	//set up ping
-	unsigned int ping_delay = 2000; //[ms] ping ever 1000ms
 	unsigned int ping_delay_count = ping_delay;
 	T1_PIN1 = OUTPUT; // first transmit pin is output
 	T1_PIN2 = OUTPUT; // second transmit pin is output
@@ -122,15 +133,14 @@ void main()
     ADC_ON = ON; // turn it on
 
     //set up calc variables
-    signed int sample1, sample2; // the 2 sample from which to calculate the magnitude of the wave
-    signed long int magnitude;
+    unsigned long int magnitude1, magnitude2, magnitude3;
+    range_to_target.range = 0xFFFF - initial_range; // begin scanning at 61us which is approximately a 10mm difference
     
     //calibration
     TIMER1 = ON;
     while (!TIMER1_INTERRUPT_FLAG); // wait a couple hundred us so the device is ready
     TIMER1_INTERRUPT_FLAG = 0;
 
-	TIMER1_COUNTER_HIGH = timer_high; TIMER1_COUNTER_LOW = timer_low;// assign a value, this causes approximately a 200us count
     runCalibration(); // pull a threshold from the POT and set the DC bias
 					    
    	GLOBAL_INTERRUPTS = ON;
@@ -150,6 +160,8 @@ void main()
 
     	if (!ping_delay_count) // is it time to transmit a ping?
     	{ 
+	    	// set needed variables so timing can be accurate in the middle of the ping
+	    	TIMER1_COUNTER_HIGH = range_to_target.high_byte; TIMER1_COUNTER_LOW = range_to_target.low_byte; // set the current wait time to check for a value
 	    	// Ping code. This is done outside interrupts and loops when it occurs, as timing is crucial
 	    	GLOBAL_INTERRUPTS = OFF; // disable interrupts because that would break things in here
 	    	
@@ -159,8 +171,7 @@ void main()
 	    	GPIO = TRANSMIT_10; // one pin up, the other one down
 	    	PAUSE;
 
-	    	// Now wait long enough to read a value. XXX this is a simple test of the ADC
-	    	TIMER1_COUNTER_HIGH = timer_high; TIMER1_COUNTER_LOW = timer_low;
+	    	// Now wait long enough to read a value.
 	    	TIMER1 = ON; // begin a count down
    			while (!TIMER1_INTERRUPT_FLAG); //wait
 
@@ -171,19 +182,31 @@ void main()
 	    	TIMER1_INTERRUPT_FLAG = 0;
 	    	TIMER1 = OFF;
 
+	    	// take 4 samples so an average can be aquired, and see if there is an increase in the trend so decisions are smoothed
+	    	// first sample
 	    	while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
-
 	    	readings[0] = ADC_RESULT_HIGH; //2us
 
 	    	// second sample
-	    	ADC_PAUSE; // XXX apparently mine is going very fast????
+	    	SAMPLE_PAUSE; // XXX apparently mine is going very fast????
 	    	ADC_GODONE = ON; // begin a reading 1us
 	    	LED = OFF; //TTT see when the samples are
-
 	    	while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
-
 	    	readings[1] = ADC_RESULT_HIGH; //2us
 	    	
+	    	// third sample
+	    	SAMPLE_PAUSE;
+	    	ADC_GODONE = ON; // begin a reading 1us
+	    	LED = ON; //TTT see when the samples are
+	    	while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
+	    	readings[2] = ADC_RESULT_HIGH; //2us
+
+	    	// fourth sample
+	    	SAMPLE_PAUSE; // XXX apparently mine is going very fast????
+	    	ADC_GODONE = ON; // begin a reading 1us
+	    	LED = OFF; //TTT see when the samples are
+	    	while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
+	    	readings[3] = ADC_RESULT_HIGH; //2us
 
 
 	    	// clean up
@@ -192,24 +215,56 @@ void main()
 	    	GLOBAL_INTERRUPTS = ON; // turn these back on
 
 	    	//calculations can happen here because now timers can increment
-	    	sample1 = (signed int)readings[0] * 19; // convert reading into sample in mV (19 ~ 5000/256)
-	    	sample1 -= receiver_dc_offset * 19; // remove dc bias
-	    	
-	    	sample2 = (signed int)readings[1] * 19; // convert reading into sample in mV
-	    	sample2 -= receiver_dc_offset * 19; // remove dc bias
 
+	    	// calculate the magnitude as the square sum of the samples, removing the dc offset. It is done like this to save memory
+	    	magnitude1 = (unsigned long int)(((readings[0]-receiver_dc_offset)*(readings[0]-receiver_dc_offset))+((readings[1]-receiver_dc_offset)*(readings[1]-receiver_dc_offset)));
 	    	//ideally these are 90deg apart because of the previous code, and so RSS should give us amplitude
-	    	magnitude = (signed long int)sample1*sample1 + (signed long int)sample2*sample2;
-
-	    	// if (sample1 > 0)
+	    	// this is between the sample 2 and 3, since there are 4 readings all 1.25 cycles apart, I can convert that two 3 magnitudes
+	    	magnitude2 = (unsigned long int)(((readings[1]-receiver_dc_offset)*(readings[1]-receiver_dc_offset))+((readings[2]-receiver_dc_offset)*(readings[2]-receiver_dc_offset)));
+	    	magnitude3 = (unsigned long int)(((readings[2]-receiver_dc_offset)*(readings[2]-receiver_dc_offset))+((readings[3]-receiver_dc_offset)*(readings[3]-receiver_dc_offset)));;
+    		
+    		if ((magnitude1 >= read_threshold) && (magnitude2 >= read_threshold) && (magnitude3 >= read_threshold))
+    		{
+    			led_state2 = ON;
+    		}
+    		else
+    		{
+    			led_state2 = OFF;
+    		}
+	    	// if (magnitude2 >= magnitude1) // if the wave increases
 	    	// {
-		    // 	led_duty_cycle = sample1; // show a divided magnitude to see if it is properly proportional
-		    // }
-		    // else
-		    // {
-		    // 	led_duty_cycle = -1 * sample1;
-		    // }
-		    led_duty_cycle = magnitude>>7;
+	    	// 	if ((magnitude1 >= read_threshold) && (magnitude2 >= read_threshold)) // if this average is above threshold 
+	    	// 	{
+	    	// 		led_state2 = ON;
+	    	// 	}
+	    	// 	else
+	    	// 	{
+	    	// 		led_state2 = OFF;
+	    	// 	}
+	    	// }
+	    	// else
+	    	// {
+	    	// 	led_state2 = OFF;
+	    	// }
+
+			// if (magnitude >= read_threshold) //  this is the rough beginning of the envelope of the wave, so we have found a distance
+			// {
+			// 	led_duty_cycle = (range_to_target.range / 2)*10; // a rough output for verification purposes
+			// 	led_state2 = ON;
+			// 	range_to_target.range = 0xFFFF - range_band; // reset search
+			// 	LED = ON;
+			// }
+			// else //  still need to keep searching
+			// {
+			// 	range_to_target.range -= range_band; // search the next range band
+			// 	if (range_to_target.range <= 0xFFFF - (unsigned short int)5*range_band)
+			// 	{
+			// 		range_to_target.range = 0xFFFF - range_band; //reset the search to within 5cm
+			// 		led_duty_cycle = 0;
+			// 		led_state2 = OFF;
+			// 		LED=OFF;
+			// 	}
+			// }
   		
     	}
 
@@ -229,6 +284,15 @@ void main()
 			}
 
    		}
+   		// TTT rewrite to ignore period, we need absolutes to obtain test values
+   		// if (led_duty_cycle_counter >= led_duty_cycle)
+   		// {
+   		// 	led_state = OFF;
+   		// }
+   		// else
+   		// {
+   		// 	led_state = ON;
+   		// }
    		if (led_duty_cycle_counter >= led_duty_cycle)
    		{
    			if (led_duty_cycle_counter >= led_period)
@@ -246,7 +310,7 @@ void main()
    			led_state = ON; // within On part of duty cycle
    		}
 
-   		LED = led_state;
+   		LED = led_state2;
     }
     
     return;
