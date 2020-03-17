@@ -37,9 +37,9 @@ union time // a union is used for ease of adjusting the range whiles assigning t
 	};
 } range_to_target; // this represents the value to initialise timer1 to, so that it counts down approximately the value after the subtraction. This is the range as this is increased to search further away, and will represent the time/distance to the object when it is found
 const unsigned char range_band = 20; // [us] to begin with, I'm doing a linear search which will proceed in steps of this
-const unsigned short int initial_range = 0xFFFF - 198; // [us] ~ the range from the transducer to begin searching for objects
-const unsigned short int min_range = 0xFFFF - 343; // 5cm from beginning // 0xFFFF - 455; // [us] the min range, about 150mm 
-const unsigned short int max_range = 0xFFFF - 488; // 85mm // 0xFFFF - 1818; // [us] the max range, about 600mm 
+const unsigned short int initial_range = 0xFFFF - 198; // [us] ~33mm from beginning the range from the transducer to begin searching for objects
+const unsigned short int min_range = 0xFFFF - 343; // 10cm round trip, so 5cm from beginning // 0xFFFF - 455; // [us] the min range, about 150mm 
+const unsigned short int max_range = 0xFFFF - 488; // 16cm, 8cm from beginning // 0xFFFF - 1818; // [us] the max range, about 600mm 
 
 unsigned short int read_threshold = 0; // XXX the threshold for the previous variable
 unsigned short int receiver_dc_offset = 0; // set on calibration
@@ -243,27 +243,18 @@ void main()
 	    	// magnitude2 = (unsigned long int)(((readings[1]-receiver_dc_offset)*(readings[1]-receiver_dc_offset))+((readings[2]-receiver_dc_offset)*(readings[2]-receiver_dc_offset)));
 	    	// magnitude3 = (unsigned long int)(((readings[2]-receiver_dc_offset)*(readings[2]-receiver_dc_offset))+((readings[3]-receiver_dc_offset)*(readings[3]-receiver_dc_offset)));;
     		
-    		// if ((magnitude1 >= read_threshold) && (magnitude2 >= read_threshold) && (magnitude3 >= read_threshold))
-    		// {
-    		// 	led_state2 = ON;
-    		// }
-    		// else
-    		// {
-    		// 	led_state2 = OFF;
-    		// }
-
 			if (magnitude1 >= read_threshold) //  this is the rough beginning of the envelope of the wave, so we have found a distance
 			{
 				// led_duty_cycle = (range_to_target.range / 2)*10; // a rough output for verification purposes
 				if (range_to_target.range >= min_range)
 				{
-					led_stay_on = 0;
-					// led_duty_cycle = 0;
+					led_stay_on = 1;
+					led_duty_cycle = 0;
 				}
 				else
 				{
-					led_stay_on = 1;
-					// led_duty_cycle = 500;
+					led_stay_on = 0;
+					led_duty_cycle = 500;
 				}
 				range_to_target.range = initial_range; // reset search
 			}
@@ -275,7 +266,7 @@ void main()
 				{
 					range_to_target.range = initial_range; //reset the search to within 5cm
 					led_stay_on = 0;
-					// led_duty_cycle = 0;
+					led_duty_cycle = 0;
 				}
 			}
   		
@@ -311,7 +302,7 @@ void main()
    			if (led_duty_cycle_counter >= led_period)
    			{
    				led_duty_cycle_counter -= led_period; //reset led counter safely
-   				led_state = ON; // we are in the ON part of the duty cycle
+   				// led_state = ON; // we are in the ON part of the duty cycle
    			}
    			else
    			{
@@ -323,7 +314,14 @@ void main()
    			led_state = ON; // within On part of duty cycle
    		}
 
-   		LED = led_stay_on;
+   		if (led_stay_on)
+   		{
+   			LED = ON;
+   		}
+   		else
+   		{
+   			LED = led_state;
+   		}
     }
     
     return;
