@@ -10,11 +10,14 @@
 
 #include "head.h"
 
+bit led_test_state = OFF; // TTT
 bit led_state = OFF; // for ease of toggling
-bit led_state2 = OFF; // TTT
+bit led_stay_on = OFF; // for indicating a solid light rather than something with a duty cycle
 unsigned int led_duty_cycle = 0; // Duty cycle of LED as on_time[ms]
 const unsigned int led_period = 1000; // period of flashing LED [ms]
 unsigned int led_duty_cycle_counter = 0;
+
+const unsigned int ping_delay = 20; //[ms]
 
 unsigned char timer0_initial= 0; // for timing smaller than a single time loop.
 unsigned char timer0_delay = 0; // for times longer than the timer itself
@@ -33,15 +36,17 @@ union time // a union is used for ease of adjusting the range whiles assigning t
 		unsigned char high_byte;
 	};
 } range_to_target; // this represents the value to initialise timer1 to, so that it counts down approximately the value after the subtraction. This is the range as this is increased to search further away, and will represent the time/distance to the object when it is found
-const unsigned char range_band = 61; // [us] to begin with, I'm doing a linear search which will proceed in steps of this, which is about 10mm
-const unsigned char initial_range = 200; // [us] the range from the transducer to begin searching for objects
+const unsigned char range_band = 20; // [us] to begin with, I'm doing a linear search which will proceed in steps of this
+const unsigned short int initial_range = 0xFFFF - 198; // [us] ~ the range from the transducer to begin searching for objects
+const unsigned short int min_range = 0xFFFF - 343; // 5cm from beginning // 0xFFFF - 455; // [us] the min range, about 150mm 
+const unsigned short int max_range = 0xFFFF - 488; // 85mm // 0xFFFF - 1818; // [us] the max range, about 600mm 
 
 unsigned short int read_threshold = 0; // XXX the threshold for the previous variable
 unsigned short int receiver_dc_offset = 0; // set on calibration
 
-unsigned char readings[4]; // an array for storing ADC results
+unsigned char readings[2]; // an array for storing ADC results
 
-const unsigned int ping_delay = 20; //[ms]
+
 
 void interrupt ISR()
 {
@@ -70,6 +75,14 @@ void interrupt ISR()
 
 void runCalibration() //pull a threshold from the POT and set the DC bias of the receiver
 {
+	GPIO = CLEAR; // clear all outputs
+
+	//reset all main variables
+	led_duty_cycle = 0;
+	led_stay_on = 0;
+	led_state = 0;
+	range_to_target.range = initial_range;
+
 	ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 1; // Set the channel to AN3 (where the POT is)
 	PAUSE; // give the adc time to point at the new channel
 	ADC_GODONE = ON; // begin a conversion
@@ -89,6 +102,7 @@ void runCalibration() //pull a threshold from the POT and set the DC bias of the
 
 void main() 
 {	
+	CORE_CLOCK = 0x6B; // set the clock difference manually XXX change this if the chip changes
 	//set up ping
 	unsigned int ping_delay_count = ping_delay;
 	T1_PIN1 = OUTPUT; // first transmit pin is output
@@ -134,7 +148,7 @@ void main()
 
     //set up calc variables
     unsigned long int magnitude1, magnitude2, magnitude3;
-    range_to_target.range = 0xFFFF - initial_range; // begin scanning at 61us which is approximately a 10mm difference
+    range_to_target.range = initial_range; // begin scanning at 61us which is approximately a 10mm difference
     
     //calibration
     TIMER1 = ON;
@@ -151,6 +165,10 @@ void main()
    		if (device_state) // enter this state when button is pressed, recalibrating the device
   		{
   			GLOBAL_INTERRUPTS = OFF;
+  			TIMER1_COUNTER_HIGH = 0; TIMER1_COUNTER_LOW = 0; // set the timer to 0
+  			TIMER1 = ON; // wait for about 65ms
+  			while (!TIMER1_INTERRUPT_FLAG);
+  			TIMER1_INTERRUPT_FLAG = 0;
 
   			runCalibration();
   			device_state = 0; // got back to first state 
@@ -162,22 +180,24 @@ void main()
     	{ 
 	    	// set needed variables so timing can be accurate in the middle of the ping
 	    	TIMER1_COUNTER_HIGH = range_to_target.high_byte; TIMER1_COUNTER_LOW = range_to_target.low_byte; // set the current wait time to check for a value
+	 
 	    	// Ping code. This is done outside interrupts and loops when it occurs, as timing is crucial
 	    	GLOBAL_INTERRUPTS = OFF; // disable interrupts because that would break things in here
 	    	
 	    	// A single pulse is enough energy for this simple system
+	    	TIMER1 = ON; // begin a count down. this happens here, because the wave starts here
 	    	GPIO = TRANSMIT_01; // one pin up, the other one down
 	    	PAUSE;
 	    	GPIO = TRANSMIT_10; // one pin up, the other one down
 	    	PAUSE;
 
 	    	// Now wait long enough to read a value.
-	    	TIMER1 = ON; // begin a count down
+	    	
    			while (!TIMER1_INTERRUPT_FLAG); //wait
 
    			// first sample 
 	    	ADC_GODONE = ON; // begin a reading 1us
-	    	LED = ON; //TTT see when the samples are
+	    	// LED = ON; //TTT see when the samples are
 	    	//reset
 	    	TIMER1_INTERRUPT_FLAG = 0;
 	    	TIMER1 = OFF;
@@ -190,23 +210,23 @@ void main()
 	    	// second sample
 	    	SAMPLE_PAUSE; // XXX apparently mine is going very fast????
 	    	ADC_GODONE = ON; // begin a reading 1us
-	    	LED = OFF; //TTT see when the samples are
+	    	// LED = OFF; //TTT see when the samples are
 	    	while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
 	    	readings[1] = ADC_RESULT_HIGH; //2us
 	    	
-	    	// third sample
-	    	SAMPLE_PAUSE;
-	    	ADC_GODONE = ON; // begin a reading 1us
-	    	LED = ON; //TTT see when the samples are
-	    	while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
-	    	readings[2] = ADC_RESULT_HIGH; //2us
+	    	// // third sample
+	    	// SAMPLE_PAUSE;
+	    	// ADC_GODONE = ON; // begin a reading 1us
+	    	// // LED = ON; //TTT see when the samples are
+	    	// while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
+	    	// readings[2] = ADC_RESULT_HIGH; //2us
 
-	    	// fourth sample
-	    	SAMPLE_PAUSE; // XXX apparently mine is going very fast????
-	    	ADC_GODONE = ON; // begin a reading 1us
-	    	LED = OFF; //TTT see when the samples are
-	    	while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
-	    	readings[3] = ADC_RESULT_HIGH; //2us
+	    	// // fourth sample
+	    	// SAMPLE_PAUSE; // XXX apparently mine is going very fast????
+	    	// ADC_GODONE = ON; // begin a reading 1us
+	    	// // LED = OFF; //TTT see when the samples are
+	    	// while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
+	    	// readings[3] = ADC_RESULT_HIGH; //2us
 
 
 	    	// clean up
@@ -220,51 +240,44 @@ void main()
 	    	magnitude1 = (unsigned long int)(((readings[0]-receiver_dc_offset)*(readings[0]-receiver_dc_offset))+((readings[1]-receiver_dc_offset)*(readings[1]-receiver_dc_offset)));
 	    	//ideally these are 90deg apart because of the previous code, and so RSS should give us amplitude
 	    	// this is between the sample 2 and 3, since there are 4 readings all 1.25 cycles apart, I can convert that two 3 magnitudes
-	    	magnitude2 = (unsigned long int)(((readings[1]-receiver_dc_offset)*(readings[1]-receiver_dc_offset))+((readings[2]-receiver_dc_offset)*(readings[2]-receiver_dc_offset)));
-	    	magnitude3 = (unsigned long int)(((readings[2]-receiver_dc_offset)*(readings[2]-receiver_dc_offset))+((readings[3]-receiver_dc_offset)*(readings[3]-receiver_dc_offset)));;
+	    	// magnitude2 = (unsigned long int)(((readings[1]-receiver_dc_offset)*(readings[1]-receiver_dc_offset))+((readings[2]-receiver_dc_offset)*(readings[2]-receiver_dc_offset)));
+	    	// magnitude3 = (unsigned long int)(((readings[2]-receiver_dc_offset)*(readings[2]-receiver_dc_offset))+((readings[3]-receiver_dc_offset)*(readings[3]-receiver_dc_offset)));;
     		
-    		if ((magnitude1 >= read_threshold) && (magnitude2 >= read_threshold) && (magnitude3 >= read_threshold))
-    		{
-    			led_state2 = ON;
-    		}
-    		else
-    		{
-    			led_state2 = OFF;
-    		}
-	    	// if (magnitude2 >= magnitude1) // if the wave increases
-	    	// {
-	    	// 	if ((magnitude1 >= read_threshold) && (magnitude2 >= read_threshold)) // if this average is above threshold 
-	    	// 	{
-	    	// 		led_state2 = ON;
-	    	// 	}
-	    	// 	else
-	    	// 	{
-	    	// 		led_state2 = OFF;
-	    	// 	}
-	    	// }
-	    	// else
-	    	// {
-	    	// 	led_state2 = OFF;
-	    	// }
+    		// if ((magnitude1 >= read_threshold) && (magnitude2 >= read_threshold) && (magnitude3 >= read_threshold))
+    		// {
+    		// 	led_state2 = ON;
+    		// }
+    		// else
+    		// {
+    		// 	led_state2 = OFF;
+    		// }
 
-			// if (magnitude >= read_threshold) //  this is the rough beginning of the envelope of the wave, so we have found a distance
-			// {
-			// 	led_duty_cycle = (range_to_target.range / 2)*10; // a rough output for verification purposes
-			// 	led_state2 = ON;
-			// 	range_to_target.range = 0xFFFF - range_band; // reset search
-			// 	LED = ON;
-			// }
-			// else //  still need to keep searching
-			// {
-			// 	range_to_target.range -= range_band; // search the next range band
-			// 	if (range_to_target.range <= 0xFFFF - (unsigned short int)5*range_band)
-			// 	{
-			// 		range_to_target.range = 0xFFFF - range_band; //reset the search to within 5cm
-			// 		led_duty_cycle = 0;
-			// 		led_state2 = OFF;
-			// 		LED=OFF;
-			// 	}
-			// }
+			if (magnitude1 >= read_threshold) //  this is the rough beginning of the envelope of the wave, so we have found a distance
+			{
+				// led_duty_cycle = (range_to_target.range / 2)*10; // a rough output for verification purposes
+				if (range_to_target.range >= min_range)
+				{
+					led_stay_on = 0;
+					// led_duty_cycle = 0;
+				}
+				else
+				{
+					led_stay_on = 1;
+					// led_duty_cycle = 500;
+				}
+				range_to_target.range = initial_range; // reset search
+			}
+			else //  still need to keep searching
+			{
+				range_to_target.range -= range_band; // search the next range band
+				
+				if (range_to_target.range <= max_range)
+				{
+					range_to_target.range = initial_range; //reset the search to within 5cm
+					led_stay_on = 0;
+					// led_duty_cycle = 0;
+				}
+			}
   		
     	}
 
@@ -310,7 +323,7 @@ void main()
    			led_state = ON; // within On part of duty cycle
    		}
 
-   		LED = led_state2;
+   		LED = led_stay_on;
     }
     
     return;
