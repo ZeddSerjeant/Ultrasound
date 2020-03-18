@@ -22,7 +22,15 @@ unsigned short int led_duty_cycle_counter = 0;
 #define PING_DELAY 20
 unsigned int ping_delay_count;
 
- // for timing smaller than a single time loop.
+#define SEARCH_RESET 50
+// this number defines the number of pings that occur before the search stops tracking and begins a search from scratch
+unsigned char search_count = SEARCH_RESET;
+unsigned char failed_search_count = 0; // used for tracking the number of search where I don't find an envelope. If that happens, something has gone drastically wrong
+// the number of searches without a peak I'll accept
+#define FAILED_SEARCH_LIMIT 5
+
+
+// for timing smaller than a single time loop.
 #define TIMER0_INITIAL 118
 
 bit device_state = 0; // pressing the button alters state
@@ -31,6 +39,7 @@ bit device_state = 0; // pressing the button alters state
 unsigned char button_bounce_count = 0; // to increment to this value
 
 bit do_calcs = 0; // for the ping cycle to indicate it has captured something so we can make calculations
+bit found_a_peak = 0; // set if we find the peak at least once, so that a binary search doesn't fail trivially when there is no object
 
 union time // a union is used for ease of adjusting the range whiles assigning the values to the timer
 {
@@ -42,18 +51,21 @@ union time // a union is used for ease of adjusting the range whiles assigning t
 	};
 } range_to_target; // this represents the value to initialise timer1 to, so that it counts down approximately the value after the subtraction. This is the range as this is increased to search further away, and will represent the time/distance to the object when it is found
 
-const unsigned char range_band = 20; // [us] to begin with, I'm doing a linear search which will proceed in steps of this
 
-#define INITIAL_RANGE (0xFFFF - 198)
+// the smallest step I'm willing to commit to
+#define RESOLUTION 20
+
+#define INITIAL_RANGE 198
 // [us] ~33mm from beginning the range from the transducer to begin searching for objects
 
-// const unsigned short int min_range = 0xFFFF - 343; // 10cm round trip, so 5cm from beginning
-// const unsigned short int max_range = 0xFFFF - 488; // 16cm, 8cm from beginning
-
-#define MIN_RANGE (0xFFFF - 874)
+#define MIN_RANGE 874
 // [us] the min range, about 150mm 
-#define MAX_RANGE (0xFFFF - 3499)
+#define MAX_RANGE 3499
 // [us] the max range, about 600mm 
+
+unsigned int range_step; // [us] to begin with, I'm doing a linear search which will proceed in steps of this
+#define INITIAL_RANGE_STEP 500
+///(MAX_RANGE - INITIAL_RANGE)/165
 
 unsigned short int read_threshold = 0; // XXX the threshold for the previous variable
 unsigned short int receiver_dc_offset = 0; // set on calibration
@@ -97,6 +109,7 @@ void interrupt ISR()
    		{
    			LED = led_state;
    		}
+   		// LED = led_test_state; //TTT
 
 		// check other timing events
 		if (button_bounce_count)
@@ -153,7 +166,7 @@ unsigned short int rangeToDuty(unsigned short int range) // converts a time dela
 	range = range/2; // this distance was for a round trip of the signal, its actually only half as far away
 	
 	// return ((range-5)*500)/495; // TTT for the distances involved with my test set up
-	return ((range-150)*500)/450; // convert to duty cycle as a proportion of the range
+	return ((600-range)*500)/450; // convert to duty cycle as a proportion of the range
 }
 
 void main() 
@@ -208,8 +221,9 @@ void main()
     runCalibration(); // pull a threshold from the POT and set the DC bias
 
     //set up calc variables
-    range_to_target.range = INITIAL_RANGE; // begin scan at an initial range, offset from 16bit max for use in the timer1
-	
+    range_to_target.range = 0xFFFF - INITIAL_RANGE; // begin scan at an initial range, offset from 16bit max for use in the timer1
+	range_step = INITIAL_RANGE_STEP; // search the 5 bins, linearly (see later code) initially
+
    	GLOBAL_INTERRUPTS = ON;
 
 
@@ -237,6 +251,22 @@ void main()
 
     	if (!ping_delay_count) // is it time to transmit a ping?
     	{ 
+    		if ((!search_count) || (failed_search_count >= FAILED_SEARCH_LIMIT)) // if our total number of pings before reset is up, or we have failed to find any samples for too long
+    		{
+    			//reset search parameters
+    			search_count = SEARCH_RESET;
+    			failed_search_count = 0;
+    			found_a_peak = 0;
+    			range_to_target.range = (0xFFFF - INITIAL_RANGE); //reset the search
+				range_step = INITIAL_RANGE_STEP; // reset range steps, just in case
+
+				//reset led report
+				led_duty_cycle = 0;
+				led_stay_on = 0;
+    		}
+
+    		search_count--; // count another ping
+
 	    	// set needed variables so timing can be accurate in the middle of the ping
 	    	TIMER1_COUNTER_HIGH = range_to_target.high_byte; TIMER1_COUNTER_LOW = range_to_target.low_byte; // set the current wait time to check for a value
 	 
@@ -282,31 +312,58 @@ void main()
 	    	// calculate the magnitude as the square sum of the samples, removing the dc offset. It is done like this to save memory
 	    	magnitude1 = (unsigned long int)(((readings[0]-receiver_dc_offset)*(readings[0]-receiver_dc_offset))+((readings[1]-receiver_dc_offset)*(readings[1]-receiver_dc_offset)));
     		
-			if (magnitude1 >= read_threshold) //  this is the rough beginning of the envelope of the wave, so we have found a distance
+			if (magnitude1 >= read_threshold) // passing threshold means there is some wave form, search backwards to it find the beginning of the envelope
 			{
+				// led_test_state = ON; // TTT
+				found_a_peak = 1; // indicate that this threshold being exceeded happened at least once
+				failed_search_count = 0; // we found something, so we can stress less about this
 				// led_duty_cycle = (range_to_target.range / 2)*10; // a rough output for verification purposes
-				if (range_to_target.range >= MIN_RANGE) // check if the range (offset from the clock) is less than min range
+				if ((0xFFFF - range_to_target.range) <= MIN_RANGE) // check if the range (offset from the clock) is less than min range
 				{
 					led_stay_on = 1;
 					led_duty_cycle = 0;
+					// do nothing else as we have found to a close enough resolution for the spec
 				}
 				else
 				{
-					led_stay_on = 0;
-					led_duty_cycle = rangeToDuty(range_to_target.range);
+					// led_test_state = ON;
+					if (range_step <= RESOLUTION) // if we are already at the smallest point, so this is the value we want
+					{
+						led_duty_cycle = rangeToDuty(range_to_target.range);
+						led_stay_on = 0;
+						range_to_target.range += range_step; // move backwards in time, just in case the wave form moves
+					}
+					else
+					{
+						range_step = range_step>>1; // divide range step by 2, for a narrower search
+						range_to_target.range += range_step; // move back in time by a range step (which is halved)
+					}
 				}
-				range_to_target.range = INITIAL_RANGE; // reset search
 			}
-			else //  still need to keep searching
+			else // no waveform here, so search forwards
 			{
-				range_to_target.range -= range_band; // search the next range band
-				
-				if (range_to_target.range <= MAX_RANGE) //if we have gone beyond the limit we care about
+				// led_test_state = ON;
+				failed_search_count++; // we didn't find anything, keep that in mind as we don't want to do it too much
+
+				if (range_step <=  RESOLUTION) // we are at the smallest search size so we missed it slightly, the object is probably at the previous range_step
 				{
-					range_to_target.range = INITIAL_RANGE; //reset the search to within 5cm
-					led_stay_on = 0;
-					led_duty_cycle = 0;
+					range_to_target.range -= range_step; // move forwards in time
 				}
+				else if (found_a_peak) // if a peak was found earlier
+				{
+					range_step = range_step>>1; // divide range step by 2, for a narrower search
+					range_to_target.range -= range_step; // move forward in time by a range step (which is halved)
+				}
+				else // if we are here, we have yet to find a peak at all, so we are linearly searching just in case there is nothing to find
+				{
+					range_to_target.range -= range_step; // move forward in time by a range step, linearly
+				}
+				
+				if ((0xFFFF - range_to_target.range) >= MAX_RANGE) //if we have gone beyond the limit we care about
+				{
+					search_count = 0; // force this search cycle to be the reset one, 
+				}
+				
 			}  		
     	}
     }
