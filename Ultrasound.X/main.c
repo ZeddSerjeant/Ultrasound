@@ -13,18 +13,21 @@
 bit led_test_state = OFF; // TTT
 bit led_state = OFF; // for ease of toggling
 bit led_stay_on = OFF; // for indicating a solid light rather than something with a duty cycle
-unsigned int led_duty_cycle = 0; // Duty cycle of LED as on_time[ms]
-const unsigned int led_period = 1000; // period of flashing LED [ms]
-unsigned int led_duty_cycle_counter = 0;
+unsigned short int led_duty_cycle = 0; // Duty cycle of LED as on_time[ms]
+// period of flashing LED [ms]
+#define LED_PERIOD 1000
+unsigned short int led_duty_cycle_counter = 0;
 
-const unsigned int ping_delay = 20; //[ms]
+//[ms]
+#define PING_DELAY 20
+unsigned int ping_delay_count;
 
-unsigned char timer0_initial= 0; // for timing smaller than a single time loop.
-unsigned char timer0_delay = 0; // for times longer than the timer itself
-unsigned char delay_count = 0; // for use with the above
+ // for timing smaller than a single time loop.
+#define TIMER0_INITIAL 118
 
 bit device_state = 0; // pressing the button alters state
-const unsigned char button_bounce = 200; // a number of interrupts to allow ignoring button bounce [ms]
+// a number of interrupts to allow ignoring button bounce [ms]
+#define BUTTON_BOUNCE 200
 unsigned char button_bounce_count = 0; // to increment to this value
 
 bit do_calcs = 0; // for the ping cycle to indicate it has captured something so we can make calculations
@@ -39,6 +42,7 @@ union time // a union is used for ease of adjusting the range whiles assigning t
 	};
 } range_to_target; // this represents the value to initialise timer1 to, so that it counts down approximately the value after the subtraction. This is the range as this is increased to search further away, and will represent the time/distance to the object when it is found
 const unsigned char range_band = 20; // [us] to begin with, I'm doing a linear search which will proceed in steps of this
+
 const unsigned short int initial_range = 0xFFFF - 198; // [us] ~33mm from beginning the range from the transducer to begin searching for objects
 
 // const unsigned short int min_range = 0xFFFF - 343; // 10cm round trip, so 5cm from beginning
@@ -58,9 +62,45 @@ void interrupt ISR()
 	if (TIMER0_INTERRUPT_FLAG) // if the timer0 interrupt flag was set (timer0 triggered)
 	{
 		TIMER0_INTERRUPT_FLAG = CLEAR; // clear interrupt flag since we are dealing with it
-		TIMER0_COUNTER = timer0_initial + 2; // reset counter, but also add 2 since it takes 2 clock cycles to get going
+		TIMER0_COUNTER = TIMER0_INITIAL + 2; // reset counter, but also add 2 since it takes 2 clock cycles to get going
 		// move counters, which is the job of this timer interrupt
-		delay_count++; // increment time delay
+		led_duty_cycle_counter++; // increment the led counter
+		
+		if (led_duty_cycle_counter >= led_duty_cycle)
+   		{
+   			if (led_duty_cycle_counter >= LED_PERIOD)
+   			{
+   				led_duty_cycle_counter -= LED_PERIOD; //reset led counter safely
+   				// led_state = ON; // we are in the ON part of the duty cycle
+   			}
+   			else
+   			{
+   				led_state = OFF;
+   			}
+   		}
+   		else
+   		{
+   			led_state = ON; // within On part of duty cycle
+   		}
+
+   		if (led_stay_on)
+   		{
+   			LED = ON;
+   		}
+   		else
+   		{
+   			LED = led_state;
+   		}
+
+		// check other timing events
+		if (button_bounce_count)
+		{
+			button_bounce_count--; // get closer to point in time that another button press can occur
+		}
+		if (ping_delay_count)
+		{
+			ping_delay_count--;
+		}
 	}
 	if (BUTTON_INTERRUPT_FLAG) // if the button has been pressed (Only IO Interrupt set)
 	{
@@ -68,14 +108,9 @@ void interrupt ISR()
 		if (!BUTTON && !button_bounce_count) // button was pressed and therefore this will read low (and we avoided bounce)
 		{
 			device_state = ~device_state; // toggle the stored button state so we can have an internal state based on it
-			button_bounce_count = button_bounce; // prevent this code from being triggered by the button bounce.
+			button_bounce_count = BUTTON_BOUNCE; // prevent this code from being triggered by the button bounce.
 		}
 	}  
-	// if (ADC_INTERRUPT_FLAG)
-	// {
-	// 	ADC_INTERRUPT_FLAG = CLEAR; // we are dealing with the interrupt
-	// 	led_duty_cycle = ADC_RESULT_HIGH; // set duty
-	// }
 }
 
 void runCalibration() //pull a threshold from the POT and set the DC bias of the receiver
@@ -119,7 +154,7 @@ void main()
 {	
 	CORE_CLOCK = 0x6B; // set the clock difference manually XXX change this if the chip changes
 	//set up ping
-	unsigned int ping_delay_count = ping_delay;
+	ping_delay_count = PING_DELAY;
 	T1_PIN1 = OUTPUT; // first transmit pin is output
 	T1_PIN2 = OUTPUT; // second transmit pin is output
 	RECEIVER_PIN = INPUT;
@@ -128,9 +163,7 @@ void main()
     // Set up timer0
     // calculate intial for accurate timing $ inital = TimerMax-((Delay*Fosc)/(Prescaler*4))
     // This shrinks timing smaller than directly prescaling for when thats necessary
-    timer0_initial = 118; // the interrupt triggers every 256-this
-    timer0_delay = 1; // for 1ms and prescaler of 1:8 (adjusted empirically)
-   	TIMER0_COUNTER = timer0_initial; // set counter
+   	TIMER0_COUNTER = TIMER0_INITIAL; // set counter
    	TIMER0_CLOCK_SCOURCE = INTERNAL; // internal clock
    	PRESCALER = 0; // enable prescaler for Timer0
     PS2=0; PS1=1; PS0=0; // Set prescaler to 1:8
@@ -162,7 +195,7 @@ void main()
     ADC_ON = ON; // turn it on
 
     //set up calc variables
-    unsigned long int magnitude1, magnitude2, magnitude3;
+    unsigned long int magnitude1;
     range_to_target.range = initial_range; // begin scanning at 61us which is approximately a 10mm difference
     
     //calibration
@@ -235,34 +268,14 @@ void main()
 	    	// LED = OFF; //TTT see when the samples are
 	    	while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
 	    	readings[1] = ADC_RESULT_HIGH; //2us
-	    	
-	    	// // third sample
-	    	// SAMPLE_PAUSE;
-	    	// ADC_GODONE = ON; // begin a reading 1us
-	    	// // LED = ON; //TTT see when the samples are
-	    	// while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
-	    	// readings[2] = ADC_RESULT_HIGH; //2us
-
-	    	// // fourth sample
-	    	// SAMPLE_PAUSE; // XXX apparently mine is going very fast????
-	    	// ADC_GODONE = ON; // begin a reading 1us
-	    	// // LED = OFF; //TTT see when the samples are
-	    	// while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
-	    	// readings[3] = ADC_RESULT_HIGH; //2us
-
 
 	    	// clean up
-	    	ping_delay_count = ping_delay;
+	    	ping_delay_count = PING_DELAY;
 	    	GLOBAL_INTERRUPTS = ON; // turn these back on
 
 	    	//calculations can now happen
-	    	// do_calcs = ON;
 	    	// calculate the magnitude as the square sum of the samples, removing the dc offset. It is done like this to save memory
 	    	magnitude1 = (unsigned long int)(((readings[0]-receiver_dc_offset)*(readings[0]-receiver_dc_offset))+((readings[1]-receiver_dc_offset)*(readings[1]-receiver_dc_offset)));
-	    	//ideally these are 90deg apart because of the previous code, and so RSS should give us amplitude
-	    	// this is between the sample 2 and 3, since there are 4 readings all 1.25 cycles apart, I can convert that two 3 magnitudes
-	    	// magnitude2 = (unsigned long int)(((readings[1]-receiver_dc_offset)*(readings[1]-receiver_dc_offset))+((readings[2]-receiver_dc_offset)*(readings[2]-receiver_dc_offset)));
-	    	// magnitude3 = (unsigned long int)(((readings[2]-receiver_dc_offset)*(readings[2]-receiver_dc_offset))+((readings[3]-receiver_dc_offset)*(readings[3]-receiver_dc_offset)));;
     		
 			if (magnitude1 >= read_threshold) //  this is the rough beginning of the envelope of the wave, so we have found a distance
 			{
@@ -290,69 +303,11 @@ void main()
 					led_duty_cycle = 0;
 				}
 			}
-
-	    	
-  		
     	}
 
     	// State code
     	// led with duty cycle
-    	if (delay_count >= timer0_delay) // runs approximately 1/1ms
-   		{
-   			delay_count -= timer0_delay; // reset counter safely
-   			led_duty_cycle_counter++; // increment the led counter
-   			if (button_bounce_count)
-			{
-				button_bounce_count--; // get closer to point in time that another button press can occur
-			}
-			if (ping_delay_count)
-			{
-				ping_delay_count--;
-			}
-
-   		}
-   		// TTT rewrite to ignore period, we need absolutes to obtain test values
-   		// if (led_duty_cycle_counter >= led_duty_cycle)
-   		// {
-   		// 	led_state = OFF;
-   		// }
-   		// else
-   		// {
-   		// 	led_state = ON;
-   		// }
-   		if (led_duty_cycle_counter >= led_duty_cycle)
-   		{
-   			if (led_duty_cycle_counter >= led_period)
-   			{
-   				led_duty_cycle_counter -= led_period; //reset led counter safely
-   				// led_state = ON; // we are in the ON part of the duty cycle
-   			}
-   			else
-   			{
-   				led_state = OFF;
-   			}
-   		}
-   		else
-   		{
-   			led_state = ON; // within On part of duty cycle
-   		}
-
-   		if (led_stay_on)
-   		{
-   			LED = ON;
-   		}
-   		else
-   		{
-   			LED = led_state;
-   		}
-
-   // 		//calculations
-   // 		if (do_calcs)
-  	// 	{
-  			
-
-			// do_calcs = OFF;
-  	// 	}
+   		
     }
     
     return;
