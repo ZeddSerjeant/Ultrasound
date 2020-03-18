@@ -7,7 +7,8 @@ enum FLAGS {OFF=0, CLEAR=0, INTERNAL=0, OUTPUT=0, INPUT=1, ON=1}; // Constants (
 #define PRESCALER PSA
 #define GLOBAL_INTERRUPTS GIE
 // this will take approximately 11 cycles of time
-#define PAUSE asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;")
+#define PAUSE1 asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;")
+#define PAUSE2 asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;")
 #define SAMPLE_PAUSE asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;")
 
 //TIMER0

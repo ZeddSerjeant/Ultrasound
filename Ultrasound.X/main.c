@@ -27,6 +27,8 @@ bit device_state = 0; // pressing the button alters state
 const unsigned char button_bounce = 200; // a number of interrupts to allow ignoring button bounce [ms]
 unsigned char button_bounce_count = 0; // to increment to this value
 
+bit do_calcs = 0; // for the ping cycle to indicate it has captured something so we can make calculations
+
 union time // a union is used for ease of adjusting the range whiles assigning the values to the timer
 {
 	unsigned short int range;
@@ -38,9 +40,12 @@ union time // a union is used for ease of adjusting the range whiles assigning t
 } range_to_target; // this represents the value to initialise timer1 to, so that it counts down approximately the value after the subtraction. This is the range as this is increased to search further away, and will represent the time/distance to the object when it is found
 const unsigned char range_band = 20; // [us] to begin with, I'm doing a linear search which will proceed in steps of this
 const unsigned short int initial_range = 0xFFFF - 198; // [us] ~33mm from beginning the range from the transducer to begin searching for objects
-const unsigned short int min_range = 0xFFFF - 343; // 10cm round trip, so 5cm from beginning // 0xFFFF - 455; // [us] the min range, about 150mm 
-const unsigned short int max_range = 0xFFFF - 488; // 16cm, 8cm from beginning // 0xFFFF - 1818; // [us] the max range, about 600mm 
 
+// const unsigned short int min_range = 0xFFFF - 343; // 10cm round trip, so 5cm from beginning
+// const unsigned short int max_range = 0xFFFF - 488; // 16cm, 8cm from beginning
+
+const unsigned short int min_range = 0xFFFF - 874; // [us] the min range, about 150mm 
+const unsigned short int max_range = 0xFFFF - 3499; // [us] the max range, about 600mm 
 unsigned short int read_threshold = 0; // XXX the threshold for the previous variable
 unsigned short int receiver_dc_offset = 0; // set on calibration
 
@@ -84,7 +89,7 @@ void runCalibration() //pull a threshold from the POT and set the DC bias of the
 	range_to_target.range = initial_range;
 
 	ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 1; // Set the channel to AN3 (where the POT is)
-	PAUSE; // give the adc time to point at the new channel
+	PAUSE1; // give the adc time to point at the new channel
 	ADC_GODONE = ON; // begin a conversion
 	
 	while (ADC_GODONE); // wait till its done
@@ -93,11 +98,21 @@ void runCalibration() //pull a threshold from the POT and set the DC bias of the
 	read_threshold = read_threshold*read_threshold; // square the value for comparison with magnitude squared later, with 20**2 for conversion to mv
 
 	ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 0; // Set the channel back to AN2 (where the receiver is)
-	PAUSE; // give the adc time to point at the new channel
+	PAUSE1; // give the adc time to point at the new channel
 	ADC_GODONE = ON; // begin a reading of the ADC, to set the midpoint of the receiver
 	while (ADC_GODONE); // wait till its done
 	
 	receiver_dc_offset = (unsigned short int)ADC_RESULT_HIGH; // store the offset
+}
+
+unsigned short int rangeToDuty(unsigned short int range) // converts a time delay in to a duty cycle
+{		
+	range = 0xFFFF - range; // remove the offset needed for the internal clock
+	range = (range * 343)/1000; // distance in mm
+	range = range/2; // this distance was for a round trip of the signal, its actually only half as far away
+	
+	// return ((range-5)*500)/495; // TTT for the distances involved with my test set up
+	return ((range-150)*500)/450; // convert to duty cycle as a proportion of the range
 }
 
 void main() 
@@ -113,8 +128,8 @@ void main()
     // Set up timer0
     // calculate intial for accurate timing $ inital = TimerMax-((Delay*Fosc)/(Prescaler*4))
     // This shrinks timing smaller than directly prescaling for when thats necessary
-    timer0_initial = 220; // the interrupt triggers every 
-    timer0_delay = 4; // for 1ms and prescaler of 1:8 (adjusted empirically)
+    timer0_initial = 118; // the interrupt triggers every 256-this
+    timer0_delay = 1; // for 1ms and prescaler of 1:8 (adjusted empirically)
    	TIMER0_COUNTER = timer0_initial; // set counter
    	TIMER0_CLOCK_SCOURCE = INTERNAL; // internal clock
    	PRESCALER = 0; // enable prescaler for Timer0
@@ -159,6 +174,12 @@ void main()
 					    
    	GLOBAL_INTERRUPTS = ON;
 
+
+
+
+
+
+   	//runtime
     while (1)
     {
     	// State based on button
@@ -187,10 +208,10 @@ void main()
 	    	// A single pulse is enough energy for this simple system
 	    	TIMER1 = ON; // begin a count down. this happens here, because the wave starts here
 	    	GPIO = TRANSMIT_01; // one pin up, the other one down
-	    	PAUSE;
+	    	PAUSE1;
 	    	GPIO = TRANSMIT_10; // one pin up, the other one down
-	    	PAUSE;
-
+	    	PAUSE2;
+	    	GPIO = 0; // disable the transmit
 	    	// Now wait long enough to read a value.
 	    	
    			while (!TIMER1_INTERRUPT_FLAG); //wait
@@ -201,6 +222,7 @@ void main()
 	    	//reset
 	    	TIMER1_INTERRUPT_FLAG = 0;
 	    	TIMER1 = OFF;
+	    	
 
 	    	// take 4 samples so an average can be aquired, and see if there is an increase in the trend so decisions are smoothed
 	    	// first sample
@@ -231,11 +253,10 @@ void main()
 
 	    	// clean up
 	    	ping_delay_count = ping_delay;
-	    	GPIO = 0x00; // turn off transmitter
 	    	GLOBAL_INTERRUPTS = ON; // turn these back on
 
-	    	//calculations can happen here because now timers can increment
-
+	    	//calculations can now happen
+	    	// do_calcs = ON;
 	    	// calculate the magnitude as the square sum of the samples, removing the dc offset. It is done like this to save memory
 	    	magnitude1 = (unsigned long int)(((readings[0]-receiver_dc_offset)*(readings[0]-receiver_dc_offset))+((readings[1]-receiver_dc_offset)*(readings[1]-receiver_dc_offset)));
 	    	//ideally these are 90deg apart because of the previous code, and so RSS should give us amplitude
@@ -254,7 +275,7 @@ void main()
 				else
 				{
 					led_stay_on = 0;
-					led_duty_cycle = 500;
+					led_duty_cycle = rangeToDuty(range_to_target.range);
 				}
 				range_to_target.range = initial_range; // reset search
 			}
@@ -269,6 +290,8 @@ void main()
 					led_duty_cycle = 0;
 				}
 			}
+
+	    	
   		
     	}
 
@@ -322,6 +345,14 @@ void main()
    		{
    			LED = led_state;
    		}
+
+   // 		//calculations
+   // 		if (do_calcs)
+  	// 	{
+  			
+
+			// do_calcs = OFF;
+  	// 	}
     }
     
     return;
