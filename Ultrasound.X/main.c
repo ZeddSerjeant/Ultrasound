@@ -41,19 +41,24 @@ union time // a union is used for ease of adjusting the range whiles assigning t
 		unsigned char high_byte;
 	};
 } range_to_target; // this represents the value to initialise timer1 to, so that it counts down approximately the value after the subtraction. This is the range as this is increased to search further away, and will represent the time/distance to the object when it is found
+
 const unsigned char range_band = 20; // [us] to begin with, I'm doing a linear search which will proceed in steps of this
 
-const unsigned short int initial_range = 0xFFFF - 198; // [us] ~33mm from beginning the range from the transducer to begin searching for objects
+#define INITIAL_RANGE (0xFFFF - 198)
+// [us] ~33mm from beginning the range from the transducer to begin searching for objects
 
 // const unsigned short int min_range = 0xFFFF - 343; // 10cm round trip, so 5cm from beginning
 // const unsigned short int max_range = 0xFFFF - 488; // 16cm, 8cm from beginning
 
-const unsigned short int min_range = 0xFFFF - 874; // [us] the min range, about 150mm 
-const unsigned short int max_range = 0xFFFF - 3499; // [us] the max range, about 600mm 
+#define MIN_RANGE (0xFFFF - 874)
+// [us] the min range, about 150mm 
+#define MAX_RANGE (0xFFFF - 3499)
+// [us] the max range, about 600mm 
+
 unsigned short int read_threshold = 0; // XXX the threshold for the previous variable
 unsigned short int receiver_dc_offset = 0; // set on calibration
 
-unsigned long int magnitude1;
+unsigned long int magnitude1 = 0;
 unsigned char readings[2]; // an array for storing ADC results
 
 
@@ -122,7 +127,7 @@ void runCalibration() //pull a threshold from the POT and set the DC bias of the
 	led_duty_cycle = 0;
 	led_stay_on = 0;
 	led_state = 0;
-	range_to_target.range = initial_range;
+	range_to_target.range = INITIAL_RANGE;
 
 	ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 1; // Set the channel to AN3 (where the POT is)
 	PAUSE1; // give the adc time to point at the new channel
@@ -203,9 +208,7 @@ void main()
     runCalibration(); // pull a threshold from the POT and set the DC bias
 
     //set up calc variables
-    magnitude1 = 0;
-    range_to_target.range = initial_range; // begin scan at an initial range, offset from 16bit max for use in the timer1
-    range_band = 20; // give 100 searches through search space to begin with 
+    range_to_target.range = INITIAL_RANGE; // begin scan at an initial range, offset from 16bit max for use in the timer1
 	
    	GLOBAL_INTERRUPTS = ON;
 
@@ -282,7 +285,7 @@ void main()
 			if (magnitude1 >= read_threshold) //  this is the rough beginning of the envelope of the wave, so we have found a distance
 			{
 				// led_duty_cycle = (range_to_target.range / 2)*10; // a rough output for verification purposes
-				if (range_to_target.range >= min_range) // check if the range (offset from the clock) is less than min range
+				if (range_to_target.range >= MIN_RANGE) // check if the range (offset from the clock) is less than min range
 				{
 					led_stay_on = 1;
 					led_duty_cycle = 0;
@@ -292,15 +295,15 @@ void main()
 					led_stay_on = 0;
 					led_duty_cycle = rangeToDuty(range_to_target.range);
 				}
-				range_to_target.range = 0xFFFF - initial_range; // reset search
+				range_to_target.range = INITIAL_RANGE; // reset search
 			}
 			else //  still need to keep searching
 			{
 				range_to_target.range -= range_band; // search the next range band
 				
-				if (range_to_target.range <= max_range) //if we have gone beyond the limit we care about
+				if (range_to_target.range <= MAX_RANGE) //if we have gone beyond the limit we care about
 				{
-					range_to_target.range = initial_range; //reset the search to within 5cm
+					range_to_target.range = INITIAL_RANGE; //reset the search to within 5cm
 					led_stay_on = 0;
 					led_duty_cycle = 0;
 				}
