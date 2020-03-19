@@ -19,15 +19,15 @@ unsigned short int led_duty_cycle = 0; // Duty cycle of LED as on_time[ms]
 unsigned short int led_duty_cycle_counter = 0;
 
 //[ms]
-#define PING_DELAY 30
+#define PING_DELAY 9
 unsigned short int ping_delay_count = PING_DELAY;
 
-#define SEARCH_RESET 50
+#define SEARCH_RESET 150
 // this number defines the number of pings that occur before the search stops tracking and begins a search from scratch
 unsigned char search_count = SEARCH_RESET;
 
 // the number of searches without a peak I'll accept
-#define FAILED_SEARCH_LIMIT 4
+#define FAILED_SEARCH_LIMIT 5
 unsigned char failed_search_count = FAILED_SEARCH_LIMIT; // used for tracking the number of search where I don't find an envelope. If that happens, something has gone drastically wrong
 
 // for timing smaller than a single time loop.
@@ -38,7 +38,6 @@ bit device_state = 0; // pressing the button alters state
 #define BUTTON_BOUNCE 200
 unsigned char button_bounce_count = 0; // to increment to this value
 
-bit do_calcs = 0; // for the ping cycle to indicate it has captured something so we can make calculations
 bit found_a_peak = 0; // set if we find the peak at least once, so that a binary search doesn't fail trivially when there is no object
 bit less_than_resolution = 0; // is set if we accept a value less that RESOLUTION, most likely set when the range is less than minimum
 union time // a union is used for ease of adjusting the range whiles assigning the values to the timer
@@ -53,19 +52,24 @@ union time // a union is used for ease of adjusting the range whiles assigning t
 
 
 // the smallest step I'm willing to commit to
-#define RESOLUTION 20
+#define RESOLUTION 12
 
 #define INITIAL_RANGE 300
 // [us] ~500mm from beginning the range from the transducer to begin searching for objects
+// #define DELTA_RANGE 20 XXX implement this sometime
+// [us] offset the initial time by this mis-triggered hard reset, which represents we've found ourselves in a whole
 
-#define MIN_RANGE 906
+#define MIN_MEASURE_RANGE 910
 // [us] the min range, about 150mm 
-#define MAX_RANGE 3510
+#define MAX_MEASURE_RANGE 3510
 // [us] the max range, about 600mm 
 
+#define MAX_SEARCH_RANGE 3800
+// the maximum we will search
+
 unsigned int range_step; // [us] to begin with, I'm doing a linear search which will proceed in steps of this
-#define INITIAL_RANGE_STEP 320
-///(MAX_RANGE - INITIAL_RANGE)/165
+#define INITIAL_RANGE_STEP 200
+///(MAX_MEASURE_RANGE - INITIAL_RANGE)/165
 
 unsigned short int read_threshold = 0; // XXX the threshold for the previous variable
 unsigned short int receiver_dc_offset = 0; // set on calibration
@@ -163,8 +167,9 @@ unsigned short int rangeToDuty(unsigned short int range) // converts a time dela
 	}
 	else // above the half way point
 	{
-		range = range>>1; // divide by 2 since this number represents round trip
+		range = range>>2; // divide by 2 since this number represents round trip, and then divide by 2 for multiplication, since +-3 doesn't matter
 		range = (range*34)/100; // distance in mm
+		range<<1; // multiply by 2 to get back the original number
 	}
 
 	
@@ -328,7 +333,7 @@ void main()
 				// led_test_state = ON; // TTT
 				failed_search_count = FAILED_SEARCH_LIMIT; // we found something, so we can stress less about this
 				// led_duty_cycle = (range_to_target.range / 2)*10; // a rough output for verification purposes
-				if ((0xFFFF - range_to_target.range) <= MIN_RANGE) // check if the range (offset from the clock) is less than min range
+				if ((0xFFFF - range_to_target.range) < MIN_MEASURE_RANGE) // check if the range (offset from the clock) is less than min range
 				{
 					found_a_peak = 0; // we don't want to go non-linear here, since we do not resolve to a small amount
 					led_duty_cycle = 500; // full led on, as per spec
@@ -342,13 +347,21 @@ void main()
 					// led_test_state = ON;
 					if (range_step <= RESOLUTION) // if we are already at the smallest point, so this is the value we want
 					{
-						led_duty_cycle = rangeToDuty(range_to_target.range);
+						if ((0xFFFF - range_to_target.range) >= MAX_MEASURE_RANGE) // if we are beyond max range, this happens here because we could land in the middle of the tail end, and the start, after reaching resolution, may be in range
+						{
+							led_duty_cycle = 0; // the led needs to be off
+						}
+						else
+						{
+							led_duty_cycle = rangeToDuty(range_to_target.range);
+						}
 						range_to_target.range += range_step; // move backwards in time, just in case the wave form moves
 						LED = ON; // TTT diagnostic, I can see what value this finds to be the peak
 					}
 					else
 					{
-						range_step = range_step>>1; // divide range step by 2, for a narrower search
+						// range_step = range_step>>1; // divide range step by 2, for a narrower search
+						// don't divide when moving back, only forward
 						range_to_target.range += range_step; // move back in time by a range step (which is halved)
 					}
 				}
@@ -358,7 +371,7 @@ void main()
 				// led_test_state = ON;
 				
 
-				if ((0xFFFF - range_to_target.range) >= MAX_RANGE) //if we have gone beyond the limit we care about
+				if ((0xFFFF - range_to_target.range) >= MAX_SEARCH_RANGE) //if we have gone beyond the limit we care about
 				{
 					search_count = 0; // force this search cycle to be the reset one
 					reset_led = 1; // we found nothing, so set everything to 0
