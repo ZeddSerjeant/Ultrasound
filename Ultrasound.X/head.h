@@ -1,6 +1,6 @@
 #include <xc.h>
 
-enum FLAGS {OFF=0, CLEAR=0, INTERNAL=0, OUTPUT=0, INPUT=1, ON=1}; // Constants (timers are set to 0 for internal clocks)
+enum FLAGS {OFF=0, CLEAR=0, INTERNAL=0, OUTPUT=0, LEFT=0, INPUT=1, ON=1, RIGHT=1}; // Constants (timers are set to 0 for internal clocks)
 
 // more readable
 #define CORE_CLOCK OSCCAL 
@@ -9,7 +9,7 @@ enum FLAGS {OFF=0, CLEAR=0, INTERNAL=0, OUTPUT=0, INPUT=1, ON=1}; // Constants (
 // this will take approximately 11 cycles of time
 #define PAUSE1 asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;")
 #define PAUSE2 asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;")
-#define SAMPLE_PAUSE asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;")
+#define SAMPLE_PAUSE asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;");asm("NOP;")
 
 //TIMER0
 #define TIMER0_COUNTER TMR0

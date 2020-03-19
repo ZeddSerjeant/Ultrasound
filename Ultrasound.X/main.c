@@ -74,9 +74,21 @@ unsigned int range_step; // [us] to begin with, I'm doing a linear search which 
 unsigned short int read_threshold = 0; // XXX the threshold for the previous variable
 unsigned short int receiver_dc_offset = 0; // set on calibration
 
-unsigned long int magnitude1 = 0;
-unsigned char readings[2]; // an array for storing ADC results
-
+union reading // a union combining reading space with the magnitude, since once we have a magnitude, we no longer need the readings. Memory!
+{
+	// arranged this way for memory locations to match
+	unsigned long int magnitude;
+	struct
+	{
+		unsigned char reading2_array[2]; // second adc result
+		unsigned char reading1_array[2]; // first adc result.
+	};
+	struct
+	{
+		unsigned short int reading2; //reading2_array[1] # reading2_array[0]
+		unsigned short int reading1; //reading1_array[1] # reading1_array[0]
+	};
+} sample;
 
 
 void interrupt ISR()
@@ -144,7 +156,7 @@ void runCalibration() //pull a threshold from the POT and set the DC bias of the
 	
 	while (ADC_GODONE); // wait till its done
 
-	read_threshold = (unsigned short int)ADC_RESULT_HIGH; // store a new threshold based on this value
+	read_threshold = ADC_RESULT_HIGH<<8 | ADC_RESULT_LOW ; // store a new threshold based on this value
 	read_threshold = read_threshold*read_threshold; // square the value for comparison with magnitude squared later, with 20**2 for conversion to mv
 
 	ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 0; // Set the channel back to AN2 (where the receiver is)
@@ -152,7 +164,7 @@ void runCalibration() //pull a threshold from the POT and set the DC bias of the
 	ADC_GODONE = ON; // begin a reading of the ADC, to set the midpoint of the receiver
 	while (ADC_GODONE); // wait till its done
 	
-	receiver_dc_offset = (unsigned short int)ADC_RESULT_HIGH; // store the offset
+	receiver_dc_offset = ADC_RESULT_HIGH<<8 | ADC_RESULT_LOW; // store the offset
 }
 
 unsigned short int rangeToDuty(unsigned short int range) // converts a time delay in to a duty cycle
@@ -218,7 +230,7 @@ void main()
     ADC_VOLTAGE_REFERENCE = INTERNAL;
     ADC_CHANNEL1 = 1; ADC_CHANNEL0 = 0; // Set the channel to AN3 (where the POT is)
     ADC_CLOCK_SOURCE2 = 0; ADC_CLOCK_SOURCE1 = 0; ADC_CLOCK_SOURCE0 = 1; // Set the clock rate of the ADC
-    ADC_OUTPUT_FORMAT = 0; // Left Shifted ADC_RESULT_HIGH contains the first 8 bits
+    ADC_OUTPUT_FORMAT = RIGHT; // right Shifted ADC_RESULT_HIGH contains the first 2 bits
     ADC_INTERRUPT = OFF; // by default these aren't necessary
     ADC_ON = ON; // turn it on
 
@@ -259,6 +271,14 @@ void main()
 
   			GLOBAL_INTERRUPTS = ON;
   		}
+
+  		// sample.reading1_array[1] = 0; // high
+  		// sample.reading1_array[0] = 50; // low
+  		// sample.reading2_array[1] = 0; // high
+  		// sample.reading2_array[0] = 50; // low
+  		// sample.magnitude = sample.reading1 + sample.reading2;
+
+  		// led_duty_cycle = sample.magnitude;
 
     	if (!ping_delay_count) // is it time to transmit a ping?
     	{ 
@@ -310,14 +330,19 @@ void main()
 	    	// take 4 samples so an average can be aquired, and see if there is an increase in the trend so decisions are smoothed
 	    	// first sample
 	    	while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
-	    	readings[0] = ADC_RESULT_HIGH; //2us
-
+	    	
 	    	// second sample
 	    	SAMPLE_PAUSE; // XXX apparently mine is going very fast????
 	    	ADC_GODONE = ON; // begin a reading 1us
 	    	// LED = OFF; //TTT see when the samples are
+	    	sample.reading1_array[1] = ADC_RESULT_HIGH;
+	    	sample.reading1_array[0] = ADC_RESULT_LOW;
+	    	
+	    	
+	    	
 	    	while(ADC_GODONE); // wait for the remaining time till we get the ADC reading 22us+3us 
-	    	readings[1] = ADC_RESULT_HIGH; //2us
+	    	sample.reading2_array[1] = ADC_RESULT_HIGH;
+	    	sample.reading2_array[0] = ADC_RESULT_LOW;
 
 			
 			// LED = led_state; // reset led immeditely
@@ -326,9 +351,9 @@ void main()
 
 	    	//calculations can now happen
 	    	// calculate the magnitude as the square sum of the samples, removing the dc offset. It is done like this to save memory
-	    	magnitude1 = (unsigned long int)(((readings[0]-receiver_dc_offset)*(readings[0]-receiver_dc_offset))+((readings[1]-receiver_dc_offset)*(readings[1]-receiver_dc_offset)));
+	    	sample.magnitude = (unsigned long int)(((sample.reading1-receiver_dc_offset)*(sample.reading1-receiver_dc_offset))+((sample.reading2-receiver_dc_offset)*(sample.reading2-receiver_dc_offset)));
     		
-			if (magnitude1 >= read_threshold) // passing threshold means there is some wave form, search backwards to it find the beginning of the envelope
+			if (sample.magnitude >= read_threshold) // passing threshold means there is some wave form, search backwards to it find the beginning of the envelope
 			{
 				// led_test_state = ON; // TTT
 				failed_search_count = FAILED_SEARCH_LIMIT; // we found something, so we can stress less about this
