@@ -19,10 +19,10 @@ unsigned short int led_duty_cycle = 0; // Duty cycle of LED as on_time[ms]
 unsigned short int led_duty_cycle_counter = 0;
 
 //[ms]
-#define PING_DELAY 9
+#define PING_DELAY 12
 unsigned short int ping_delay_count = PING_DELAY;
 
-#define SEARCH_RESET 150
+#define SEARCH_RESET 250
 // this number defines the number of pings that occur before the search stops tracking and begins a search from scratch
 unsigned char search_count = SEARCH_RESET;
 
@@ -68,7 +68,7 @@ union time // a union is used for ease of adjusting the range whiles assigning t
 // the maximum we will search
 
 unsigned int range_step; // [us] to begin with, I'm doing a linear search which will proceed in steps of this
-#define INITIAL_RANGE_STEP 200
+#define INITIAL_RANGE_STEP 96
 ///(MAX_MEASURE_RANGE - INITIAL_RANGE)/165
 
 unsigned short int read_threshold = 0; // XXX the threshold for the previous variable
@@ -169,25 +169,39 @@ void runCalibration() //pull a threshold from the POT and set the DC bias of the
 
 unsigned short int rangeToDuty(unsigned short int range) // converts a time delay in to a duty cycle
 {
-
 	range = 0xFFFF - range; // remove the offset needed for the internal clock
 	
-	if (range < 2700) // less than the half way point
-	{
-		range = range>>1; // divide by 2 since this number represents round trip
-		range = (range*33)/100; // distance in mm
-	}
-	else // above the half way point
-	{
-		range = range>>2; // divide by 2 since this number represents round trip, and then divide by 2 for multiplication, since +-3 doesn't matter
-		range = (range*34)/100; // distance in mm
-		range<<1; // multiply by 2 to get back the original number
-	}
+	//resusing this variable because space
+	// sample.magnitude = range>>1; //divide it by 2
+	// sample.magnitude = 666 - (167*(range))/450; // this is guarenteed to be in range
 
+	// return (unsigned short int)sample.magnitude;
+
+	// sample.magnitude = sample.magnitude*333;
+	// sample.magnitude = sample.magnitude/1000;
+	// if (range < 2700) // less than the half way point
+	// {
+	// 	range = range>>1; // divide by 2 since this number represents round trip
+	// 	range = (range*33)/100; // distance in mm
+		
+	// 	// sample.magnitude = sample.magnitude*333;
+	// 	// sample.magnitude = sample.magnitude/1000;
+	// }
+	// else // above the half way point
+	// {
+	// 	range = range>>2; // divide by 2 since this number represents round trip, and then divide by 2 for multiplication, since +-3 doesn't matter
+	// 	range = (range*34)/100; // distance in mm
+	// 	range<<1; // multiply by 2 to get back the original number
+	// 	// sample.magnitude = sample.magnitude*341;
+	// 	// sample.magnitude = sample.magnitude/1000;
+	// }
 	
-	
-	// return range;
-	// return ((range-5)*500)/495; // TTT for the distances involved with my test set up
+	// range = (unsigned short int)sample.magnitude;
+	// // return range;
+	// // return ((range-5)*500)/495; // TTT for the distances involved with my test set up
+
+	range = range/2;
+	range = (range*33)/100;
 	return ((600-range)*50)/45; // convert to duty cycle as a proportion of the range
 }
 
@@ -385,8 +399,7 @@ void main()
 					}
 					else
 					{
-						// range_step = range_step>>1; // divide range step by 2, for a narrower search
-						// don't divide when moving back, only forward
+						range_step = range_step>>1; // divide range step by 2, for a narrower search
 						range_to_target.range += range_step; // move back in time by a range step (which is halved)
 					}
 				}
