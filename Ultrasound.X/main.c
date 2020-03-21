@@ -15,11 +15,11 @@ bit led_state = OFF; // for ease of toggling
 bit reset_led = OFF; // for when we find no object
 unsigned short int led_duty_cycle = 0; // Duty cycle of LED as on_time[ms]
 // period of flashing LED [ms]
-#define LED_PERIOD 500
+#define LED_PERIOD 470
 unsigned short int led_duty_cycle_counter = 0;
 
 //[ms]
-#define PING_DELAY 12
+#define PING_DELAY 10
 unsigned short int ping_delay_count = PING_DELAY;
 
 #define SEARCH_RESET 250
@@ -93,7 +93,6 @@ union reading // a union combining reading space with the magnitude, since once 
 
 void interrupt ISR()
 {
-	LED = 1;
 	if (TIMER0_INTERRUPT_FLAG) // if the timer0 interrupt flag was set (timer0 triggered)
 	{
 		TIMER0_INTERRUPT_FLAG = CLEAR; // clear interrupt flag since we are dealing with it
@@ -106,7 +105,7 @@ void interrupt ISR()
    			if (led_duty_cycle_counter >= LED_PERIOD)
    			{
    				led_duty_cycle_counter -= LED_PERIOD; //reset led counter safely
-   				// led_state = ON; // we are in the ON part of the duty cycle
+   				led_state = ON; // we are in the ON part of the duty cycle
    			}
    			else
    			{
@@ -118,7 +117,7 @@ void interrupt ISR()
    			led_state = ON; // within On part of duty cycle
    		}
    		
-   		// LED = led_state;
+   		LED = led_state;
    		// LED = led_test_state; //TTT
 
 		// check other timing events
@@ -140,8 +139,6 @@ void interrupt ISR()
 			button_bounce_count = BUTTON_BOUNCE; // prevent this code from being triggered by the button bounce.
 		}
 	}
-
-	LED = 0;
 }
 
 void runCalibration() //pull a threshold from the POT and set the DC bias of the receiver
@@ -334,6 +331,7 @@ void main()
 	    	GPIO = 0; // disable the transmit
 	    	// Now wait long enough to read a value.
 	    	
+	    	LED = led_state;
    			while (!TIMER1_INTERRUPT_FLAG); //wait
 
    			// first sample 
