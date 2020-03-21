@@ -328,6 +328,18 @@ void main()
 	    	PAUSE1;
 	    	GPIO = TRANSMIT_10; // one pin up, the other one down
 	    	PAUSE2;
+	    	GPIO = TRANSMIT_01; // one pin up, the other one down
+	    	PAUSE1;
+	    	GPIO = TRANSMIT_10; // one pin up, the other one down
+	    	PAUSE2;
+	    	GPIO = TRANSMIT_01; // one pin up, the other one down
+	    	PAUSE1;
+	    	GPIO = TRANSMIT_10; // one pin up, the other one down
+	    	PAUSE2;
+	    	GPIO = TRANSMIT_01; // one pin up, the other one down
+	    	PAUSE1;
+	    	GPIO = TRANSMIT_10; // one pin up, the other one down
+	    	PAUSE2;
 	    	GPIO = 0; // disable the transmit
 	    	// Now wait long enough to read a value.
 	    	
