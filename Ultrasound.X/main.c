@@ -270,7 +270,6 @@ void main()
    	//runtime
     while (1)
     {
-    	LED = ~LED; // toggle to show time in mainloop
     	// LED = led_state; // reset this thing
     	// State based on button
    		if (device_state) // enter this state when button is pressed, recalibrating the device
@@ -297,6 +296,7 @@ void main()
 
     	if (!ping_delay_count) // is it time to transmit a ping?
     	{ 
+    		LED = 1; // toggle to show time in ping
     		ping_delay_count = PING_DELAY; // reset delay till next ping
 
     		if ((!search_count) || (!failed_search_count)) // if our total number of pings before reset is up, or we have failed to find any samples for too long
@@ -315,7 +315,7 @@ void main()
 				}
     		}
 
-    		// search_count--; // count another ping
+    		search_count--; // count another ping
 
 	    	// set needed variables so timing can be accurate in the middle of the ping
 	    	TIMER1_COUNTER_HIGH = range_to_target.high_byte; TIMER1_COUNTER_LOW = range_to_target.low_byte; // set the current wait time to check for a value
@@ -443,6 +443,7 @@ void main()
 			}
 
 			// LED = led_state;
+			LED = 0;
     	}
 
     }
