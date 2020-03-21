@@ -93,6 +93,7 @@ union reading // a union combining reading space with the magnitude, since once 
 
 void interrupt ISR()
 {
+	LED = 1;
 	if (TIMER0_INTERRUPT_FLAG) // if the timer0 interrupt flag was set (timer0 triggered)
 	{
 		TIMER0_INTERRUPT_FLAG = CLEAR; // clear interrupt flag since we are dealing with it
@@ -138,7 +139,9 @@ void interrupt ISR()
 			device_state = ~device_state; // toggle the stored button state so we can have an internal state based on it
 			button_bounce_count = BUTTON_BOUNCE; // prevent this code from being triggered by the button bounce.
 		}
-	}  
+	}
+
+	LED = 0;
 }
 
 void runCalibration() //pull a threshold from the POT and set the DC bias of the receiver
@@ -296,7 +299,6 @@ void main()
 
     	if (!ping_delay_count) // is it time to transmit a ping?
     	{ 
-    		LED = 1; // toggle to show time in ping
     		ping_delay_count = PING_DELAY; // reset delay till next ping
 
     		if ((!search_count) || (!failed_search_count)) // if our total number of pings before reset is up, or we have failed to find any samples for too long
@@ -325,11 +327,9 @@ void main()
 	    	
 	    	// A single pulse is enough energy for this simple system
 	    	TIMER1 = ON; // begin a count down. this happens here, because the wave starts here
-	    	// GPIO = TRANSMIT_01; // one pin up, the other one down
-	    	asm("NOP;");
+	    	GPIO = TRANSMIT_01; // one pin up, the other one down
 	    	PAUSE1;
-	    	asm("NOP;");
-	    	// GPIO = TRANSMIT_10; // one pin up, the other one down
+	    	GPIO = TRANSMIT_10; // one pin up, the other one down
 	    	PAUSE2;
 	    	GPIO = 0; // disable the transmit
 	    	// Now wait long enough to read a value.
@@ -443,7 +443,6 @@ void main()
 			}
 
 			// LED = led_state;
-			LED = 0;
     	}
 
     }
