@@ -270,6 +270,7 @@ void main()
    	//runtime
     while (1)
     {
+    	LED = ~LED; // toggle to show time in mainloop
     	// LED = led_state; // reset this thing
     	// State based on button
    		if (device_state) // enter this state when button is pressed, recalibrating the device
@@ -324,21 +325,11 @@ void main()
 	    	
 	    	// A single pulse is enough energy for this simple system
 	    	TIMER1 = ON; // begin a count down. this happens here, because the wave starts here
-	    	GPIO = TRANSMIT_01; // one pin up, the other one down
+	    	// GPIO = TRANSMIT_01; // one pin up, the other one down
+	    	asm("NOP;");
 	    	PAUSE1;
-	    	GPIO = TRANSMIT_10; // one pin up, the other one down
-	    	PAUSE2;
-	    	GPIO = TRANSMIT_01; // one pin up, the other one down
-	    	PAUSE1;
-	    	GPIO = TRANSMIT_10; // one pin up, the other one down
-	    	PAUSE2;
-	    	GPIO = TRANSMIT_01; // one pin up, the other one down
-	    	PAUSE1;
-	    	GPIO = TRANSMIT_10; // one pin up, the other one down
-	    	PAUSE2;
-	    	GPIO = TRANSMIT_01; // one pin up, the other one down
-	    	PAUSE1;
-	    	GPIO = TRANSMIT_10; // one pin up, the other one down
+	    	asm("NOP;");
+	    	// GPIO = TRANSMIT_10; // one pin up, the other one down
 	    	PAUSE2;
 	    	GPIO = 0; // disable the transmit
 	    	// Now wait long enough to read a value.
@@ -347,7 +338,7 @@ void main()
 
    			// first sample 
 	    	ADC_GODONE = ON; // begin a reading 1us
-	    	LED = ON; //TTT see when the samples are
+	    	// LED = ON; //TTT see when the samples are
 	    	//reset
 	    	TIMER1_INTERRUPT_FLAG = 0;
 	    	TIMER1 = OFF;
@@ -360,7 +351,7 @@ void main()
 	    	// second sample
 	    	SAMPLE_PAUSE; // XXX apparently mine is going very fast????
 	    	ADC_GODONE = ON; // begin a reading 1us
-	    	LED = OFF; //TTT see when the samples are
+	    	// LED = OFF; //TTT see when the samples are
 	    	sample.reading1_array[1] = ADC_RESULT_HIGH;
 	    	sample.reading1_array[0] = ADC_RESULT_LOW;
 	    	
@@ -379,80 +370,81 @@ void main()
 	    	// calculate the magnitude as the square sum of the samples, removing the dc offset. It is done like this to save memory
 	    	sample.magnitude = (unsigned long int)(((sample.reading1-receiver_dc_offset)*(sample.reading1-receiver_dc_offset))+((sample.reading2-receiver_dc_offset)*(sample.reading2-receiver_dc_offset)));
     		
-			// if (sample.magnitude >= read_threshold) // passing threshold means there is some wave form, search backwards to it find the beginning of the envelope
-			// {
-			// 	// led_test_state = ON; // TTT
-			// 	failed_search_count = FAILED_SEARCH_LIMIT; // we found something, so we can stress less about this
-			// 	// led_duty_cycle = (range_to_target.range / 2)*10; // a rough output for verification purposes
-			// 	if ((0xFFFF - range_to_target.range) < MIN_MEASURE_RANGE) // check if the range (offset from the clock) is less than min range
-			// 	{
-			// 		found_a_peak = 0; // we don't want to go non-linear here, since we do not resolve to a small amount
-			// 		led_duty_cycle = 500; // full led on, as per spec
-			// 		less_than_resolution = 1; // we accepted a value that wasn't at full resolution. If we loset the value, we want a full rescan
-			// 		// LED = ON; // TTT see where we are finding the object
-			// 		// do nothing else as we have found to a close enough resolution for the spec
-			// 	}
-			// 	else
-			// 	{
-			// 		found_a_peak = 1; // indicate that this threshold being exceeded happened at least once, outside of the min since we stop going to the smallest resolution once we realize we are there
-			// 		// led_test_state = ON;
-			// 		if (range_step <= RESOLUTION) // if we are already at the smallest point, so this is the value we want
-			// 		{
-			// 			if ((0xFFFF - range_to_target.range) >= MAX_MEASURE_RANGE) // if we are beyond max range, this happens here because we could land in the middle of the tail end, and the start, after reaching resolution, may be in range
-			// 			{
-			// 				led_duty_cycle = 0; // the led needs to be off
-			// 			}
-			// 			else
-			// 			{
-			// 				led_duty_cycle = rangeToDuty(range_to_target.range);
-			// 			}
-			// 			range_to_target.range += range_step; // move backwards in time, just in case the wave form moves
-			// 			// LED = ON; // TTT diagnostic, I can see what value this finds to be the peak
-			// 		}
-			// 		else
-			// 		{
-			// 			range_step = range_step>>1; // divide range step by 2, for a narrower search
-			// 			range_to_target.range += range_step; // move back in time by a range step (which is halved)
-			// 		}
-			// 	}
-			// }
-			// else // no waveform here, so search forwards
-			// {
-			// 	// led_test_state = ON;
+			if (sample.magnitude >= read_threshold) // passing threshold means there is some wave form, search backwards to it find the beginning of the envelope
+			{
+				// led_test_state = ON; // TTT
+				failed_search_count = FAILED_SEARCH_LIMIT; // we found something, so we can stress less about this
+				// led_duty_cycle = (range_to_target.range / 2)*10; // a rough output for verification purposes
+				if ((0xFFFF - range_to_target.range) < MIN_MEASURE_RANGE) // check if the range (offset from the clock) is less than min range
+				{
+					found_a_peak = 0; // we don't want to go non-linear here, since we do not resolve to a small amount
+					led_duty_cycle = 500; // full led on, as per spec
+					less_than_resolution = 1; // we accepted a value that wasn't at full resolution. If we loset the value, we want a full rescan
+					// LED = ON; // TTT see where we are finding the object
+					// do nothing else as we have found to a close enough resolution for the spec
+				}
+				else
+				{
+					found_a_peak = 1; // indicate that this threshold being exceeded happened at least once, outside of the min since we stop going to the smallest resolution once we realize we are there
+					// led_test_state = ON;
+					if (range_step <= RESOLUTION) // if we are already at the smallest point, so this is the value we want
+					{
+						if ((0xFFFF - range_to_target.range) >= MAX_MEASURE_RANGE) // if we are beyond max range, this happens here because we could land in the middle of the tail end, and the start, after reaching resolution, may be in range
+						{
+							led_duty_cycle = 0; // the led needs to be off
+						}
+						else
+						{
+							led_duty_cycle = rangeToDuty(range_to_target.range);
+						}
+						range_to_target.range += range_step; // move backwards in time, just in case the wave form moves
+						// LED = ON; // TTT diagnostic, I can see what value this finds to be the peak
+					}
+					else
+					{
+						range_step = range_step>>1; // divide range step by 2, for a narrower search
+						range_to_target.range += range_step; // move back in time by a range step (which is halved)
+					}
+				}
+			}
+			else // no waveform here, so search forwards
+			{
+				// led_test_state = ON;
 				
 
-			// 	if ((0xFFFF - range_to_target.range) >= MAX_SEARCH_RANGE) //if we have gone beyond the limit we care about
-			// 	{
-			// 		search_count = 0; // force this search cycle to be the reset one
-			// 		reset_led = 1; // we found nothing, so set everything to 0
-			// 	}
+				if ((0xFFFF - range_to_target.range) >= MAX_SEARCH_RANGE) //if we have gone beyond the limit we care about
+				{
+					search_count = 0; // force this search cycle to be the reset one
+					reset_led = 1; // we found nothing, so set everything to 0
+				}
 
-			// 	if (range_step <=  RESOLUTION) // we are at the smallest search size so we missed it slightly, the object is probably at the previous range_step
-			// 	{
-			// 		range_to_target.range -= range_step; // move forwards in time
-			// 		failed_search_count--; // we didn't find anything, keep that in mind as we don't want to do it too much
-			// 	}
-			// 	else if (found_a_peak) // if a peak was found earlier
-			// 	{
-			// 		range_step = range_step>>1; // divide range step by 2, for a narrower search
-			// 		range_to_target.range -= range_step; // move forward in time by a range step (which is halved)
-			// 		failed_search_count--; // we didn't find anything, keep that in mind as we don't want to do it too much
-			// 	}
-			// 	else // if we are here, we have yet to find a peak at all, so we are linearly searching just in case there is nothing to find
-			// 	{
-			// 		range_to_target.range -= range_step; // move forward in time by a range step, linearly
-			// 	}
+				if (range_step <=  RESOLUTION) // we are at the smallest search size so we missed it slightly, the object is probably at the previous range_step
+				{
+					range_to_target.range -= range_step; // move forwards in time
+					failed_search_count--; // we didn't find anything, keep that in mind as we don't want to do it too much
+				}
+				else if (found_a_peak) // if a peak was found earlier
+				{
+					range_step = range_step>>1; // divide range step by 2, for a narrower search
+					range_to_target.range -= range_step; // move forward in time by a range step (which is halved)
+					failed_search_count--; // we didn't find anything, keep that in mind as we don't want to do it too much
+				}
+				else // if we are here, we have yet to find a peak at all, so we are linearly searching just in case there is nothing to find
+				{
+					range_to_target.range -= range_step; // move forward in time by a range step, linearly
+				}
 				
-			// 	if (less_than_resolution) // if we failed to find something while not at full resolution, reset immediately since its easy to vanish
-			// 	{
-			// 		less_than_resolution = 0;
-			// 		search_count = 0;
-			// 		// reset_led = 1;
-			// 	} 
-			// }
+				if (less_than_resolution) // if we failed to find something while not at full resolution, reset immediately since its easy to vanish
+				{
+					less_than_resolution = 0;
+					search_count = 0;
+					// reset_led = 1;
+				} 
+			}
 
 			// LED = led_state;
     	}
+
     }
     
     return;
