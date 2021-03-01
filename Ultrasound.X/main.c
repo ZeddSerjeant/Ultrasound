@@ -28,7 +28,8 @@ unsigned char search_count = SEARCH_RESET;
 
 // the number of searches without a peak I'll accept
 #define FAILED_SEARCH_LIMIT 5
-unsigned char failed_search_count = FAILED_SEARCH_LIMIT; // used for tracking the number of search where I don't find an envelope. If that happens, something has gone drastically wrong
+unsigned char failed_search_count = FAILED_SEARCH_LIMIT; // used for tracking the number of search where I don't find an envelope. 
+//If that happens, something has gone drastically wrong
 
 // for timing smaller than a single time loop.
 #define TIMER0_INITIAL 118
@@ -48,7 +49,8 @@ union time // a union is used for ease of adjusting the range whiles assigning t
 		unsigned char low_byte;
 		unsigned char high_byte;
 	};
-} range_to_target; // this represents the value to initialise timer1 to, so that it counts down approximately the value after the subtraction. This is the range as this is increased to search further away, and will represent the time/distance to the object when it is found
+} range_to_target; // this represents the value to initialise timer1 to, so that it counts down approximately the value 
+// after the subtraction. This is the range as this is increased to search further away, and will represent the time/distance to the object when it is found
 
 
 // the smallest step I'm willing to commit to
@@ -74,7 +76,7 @@ unsigned int range_step; // [us] to begin with, I'm doing a linear search which 
 unsigned short int read_threshold = 0; // XXX the threshold for the previous variable
 unsigned short int receiver_dc_offset = 0; // set on calibration
 
-union reading // a union combining reading space with the magnitude, since once we have a magnitude, we no longer need the readings. Memory!
+union reading // a union combining reading space with the magnitude, since once we have a magnitude, we no longer need the readings. 
 {
 	// arranged this way for memory locations to match
 	unsigned long int magnitude;
@@ -89,6 +91,7 @@ union reading // a union combining reading space with the magnitude, since once 
 		unsigned short int reading1; //reading1_array[1] # reading1_array[0]
 	};
 } sample;
+// Save memory!
 
 
 void interrupt ISR()
@@ -170,35 +173,6 @@ void runCalibration() //pull a threshold from the POT and set the DC bias of the
 unsigned short int rangeToDuty(unsigned short int range) // converts a time delay in to a duty cycle
 {
 	range = 0xFFFF - range; // remove the offset needed for the internal clock
-	
-	//resusing this variable because space
-	// sample.magnitude = range>>1; //divide it by 2
-	// sample.magnitude = 666 - (167*(range))/450; // this is guarenteed to be in range
-
-	// return (unsigned short int)sample.magnitude;
-
-	// sample.magnitude = sample.magnitude*333;
-	// sample.magnitude = sample.magnitude/1000;
-	// if (range < 2700) // less than the half way point
-	// {
-	// 	range = range>>1; // divide by 2 since this number represents round trip
-	// 	range = (range*33)/100; // distance in mm
-		
-	// 	// sample.magnitude = sample.magnitude*333;
-	// 	// sample.magnitude = sample.magnitude/1000;
-	// }
-	// else // above the half way point
-	// {
-	// 	range = range>>2; // divide by 2 since this number represents round trip, and then divide by 2 for multiplication, since +-3 doesn't matter
-	// 	range = (range*34)/100; // distance in mm
-	// 	range<<1; // multiply by 2 to get back the original number
-	// 	// sample.magnitude = sample.magnitude*341;
-	// 	// sample.magnitude = sample.magnitude/1000;
-	// }
-	
-	// range = (unsigned short int)sample.magnitude;
-	// // return range;
-	// // return ((range-5)*500)/495; // TTT for the distances involved with my test set up
 
 	range = range/2;
 	range = (range*33)/100;
@@ -298,7 +272,8 @@ void main()
     	{ 
     		ping_delay_count = PING_DELAY; // reset delay till next ping
 
-    		if ((!search_count) || (!failed_search_count)) // if our total number of pings before reset is up, or we have failed to find any samples for too long
+            // if our total number of pings before reset is up, or we have failed to find any samples for too long
+    		if ((!search_count) || (!failed_search_count)) 
     		{
     			//reset search parameters
     			search_count = SEARCH_RESET;
@@ -317,7 +292,8 @@ void main()
     		search_count--; // count another ping
 
 	    	// set needed variables so timing can be accurate in the middle of the ping
-	    	TIMER1_COUNTER_HIGH = range_to_target.high_byte; TIMER1_COUNTER_LOW = range_to_target.low_byte; // set the current wait time to check for a value
+            // set the current wait time to check for a value
+	    	TIMER1_COUNTER_HIGH = range_to_target.high_byte; TIMER1_COUNTER_LOW = range_to_target.low_byte;
 	 
 	    	// Ping code. This is done outside interrupts and loops when it occurs, as timing is crucial
 	    	GLOBAL_INTERRUPTS = OFF; // disable interrupts because that would break things in here
@@ -382,11 +358,13 @@ void main()
 				}
 				else
 				{
-					found_a_peak = 1; // indicate that this threshold being exceeded happened at least once, outside of the min since we stop going to the smallest resolution once we realize we are there
+                    // indicate that this threshold being exceeded happened at least once, outside of the min since we stop going to the smallest resolution once we realize we are there
+					found_a_peak = 1; 
 					// led_test_state = ON;
 					if (range_step <= RESOLUTION) // if we are already at the smallest point, so this is the value we want
 					{
-						if ((0xFFFF - range_to_target.range) >= MAX_MEASURE_RANGE) // if we are beyond max range, this happens here because we could land in the middle of the tail end, and the start, after reaching resolution, may be in range
+                        // if we are beyond max range, this happens here because we could land in the middle of the tail end, and the start, after reaching resolution, may be in range
+						if ((0xFFFF - range_to_target.range) >= MAX_MEASURE_RANGE) 
 						{
 							led_duty_cycle = 0; // the led needs to be off
 						}

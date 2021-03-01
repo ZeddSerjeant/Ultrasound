@@ -1,1 +1,182 @@
--- note, LED_DUTY_CYCLE shows off that the LED blinks with a particular duty cycle
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+
+\usepackage[a4paper, margin=1in]{geometry}
+
+\usepackage{graphicx}
+\usepackage{subcaption}
+
+\usepackage{pdflscape}
+
+\usepackage{listings}
+\usepackage{xcolor} %for listings
+\lstset{
+ basicstyle=\footnotesize,
+ commentstyle=\color{green},
+ keywordstyle=\color{blue},
+ stringstyle=\color{red},
+}
+
+\usepackage{siunitx}
+
+\title{Ultrasound Report}
+\author{Zedd Serjeant 1261476}
+\date{23 March 2020}
+
+% \DeclareSIUnit{cycles}{cycles}
+
+
+\begin{document}
+
+
+\maketitle
+% \setlength{\droptitle}{-10em}   % This is your set screw
+
+\section{Device Purpose}
+The purpose of this device is to measure the depth of a water column within an acrylic tube of arbitrary diameter. This will utilise ultrasonic sonar.
+
+\section{Algorithm}
+\subsection{Mainline}
+The system launches a single cycle of a \SI{40}{\kilo\hertz} sound wave and waits a certain amount of \textit{microseconds} to calculate a magnitude. At first, this time delay is increased by a set number, resulting in a linear search (Figure~\ref{fig_linearsearch}) of the return echo. This increment was chosen to be smaller than the envelope width at \SI{100}{\micro\meter}. Other values of this were trialled, however it is expected that this will necessarily change with tube diameter. 
+
+Once this search finds a magnitude that exceeds a user set threshold, the system changes to a \textit{binary search}~(Figure~\ref{fig:binary_search}), wherein if the threshold is exceeded, move back in time, and if not, move forwards in time, halving the distance with each increment. This continues until the step increment is smaller than a specified \textit{resolution}, resulting in close tracking of the envelope of the waveform, as can be seen in \textit{Figure~\ref{fig_summaryimage}}. This figure also clearly shows \textcolor{magenta}{CH3} connected to the Potentiometer and supplying the threshold, and \textcolor{green}{CH2} showing the system identifying the beginning of the envelope.
+
+This search takes one sample per ping. This means that if there is no object to be found, the search stays linear and takes 36~cycles to complete. Because of this, the system attempts to follow the envelope for as long as possible, making adjustments at resolution each cycle. However, if the envelope is lost an incorrect distance will be reported. There are two mechanisms to prevent this. First, if 5 consecutive ping cycles are found to be below threshold, the system will rest to a linear search of the entire search-space. Second, a reset is forced every 250 cycles.
+
+Once the beginning of the envelope is found, a duty cycle is calculated with it (\textit{Section~\ref{sect:specificaton}}) and the flashing of the LED is left to the ISR.
+
+\subsection{Interrupt}
+The Interrupt for this system is set to occur once approximately every millisecond. Each time it triggers, a counter is incremented and the LED stays illuminated while it is less than the calculated duty cycle, off otherwise, and it resets each time the counter reaches the period.
+
+
+\newpage
+\begin{figure}[t]
+    \centering
+    \begin{subfigure}[b]{0.5\textwidth}
+        \includegraphics[width=\textwidth]{img/LinearSearchAlgorithm1.png}
+        \caption{Linear Search Waveform}
+        \label{fig_linearsearch}
+    \end{subfigure}~
+    \begin{subfigure}[b]{0.5\textwidth}
+        \includegraphics[width=\textwidth]{img/BinarySearch2.png}
+        \caption{Binary Search Waveform}
+        \label{fig:binary_search}
+\end{subfigure}
+
+\end{figure}
+
+
+\begin{figure}[t!]
+    \centering
+    \includegraphics[width=0.6\textwidth]{img/overall_system.png}
+    \caption{Overall System}
+    \label{fig_summaryimage}
+\end{figure}
+
+% \begin{figure}
+%     \centering
+%     % \includegraphics{}
+%     \caption{System Flowchart}
+%     \label{fig_systemflowchart}
+% \end{figure}
+
+% \newpage
+% \section{Testing}
+% \begin{itemize}
+%     \item graphs with time compared to distance
+%     \item graphs of led flashing
+%     \item reference previous section with linear search and tracking point
+% \end{itemize}
+
+
+
+\newpage
+\section{Appendix - Specification} \label{sect:specificaton}
+Here are the specifications as laid out by the \textit{Project Manager} 
+\begin{itemize}
+    \item Goal: to indicate the depth of a water column within an acrylic tube of arbitrary diameter.
+    \item Use the given hardware(Section~\ref{sect_hardware})
+    \item Indicate depth by flashing an LED with a frequency of \SI{2}{\hertz} and with a duty cycle calculated as follows:
+        \begin{equation}
+            t_{on}[\si{\ms}] = \frac{\SI{600}{\mm} - d[\si{\mm}]}{\SI{450}{\mm}} \cdot \SI{500}{\ms}
+        \end{equation}
+        where \textit{d} is the distance from the ultrasonic transducer to the surface of the water.
+    \item If the water is closer than \SI{150}{\mm}, the LED must be on continuously, if it is further than \SI{600}{\mm}, it must be off. 
+\end{itemize} 
+
+
+\newpage
+\section{Appendix - Timing}
+Various Figures showing the timing of different important parts of the program
+
+\begin{figure}[h!]
+    \centering
+    \begin{subfigure}[b]{0.5\textwidth}
+        \includegraphics[width=\textwidth]{img/interrupt_internal_time.png}
+        \caption{Interrupt Time}
+        % \label{fig_linearsearch}
+    \end{subfigure}~
+    \begin{subfigure}[b]{0.5\textwidth}
+        \includegraphics[width=\textwidth]{img/interrupt_period.png}
+        \caption{Interrupt Period}
+        % \label{fig:binary_search}
+\end{subfigure}
+\end{figure}
+
+\begin{figure}[h!]
+    \centering
+    \begin{subfigure}[b]{0.5\textwidth}
+        \includegraphics[width=\textwidth]{img/LED_duty2.png}
+        \caption{LED Duty}
+        % \label{fig_linearsearch}
+    \end{subfigure}~
+    \begin{subfigure}[b]{0.5\textwidth}
+        \includegraphics[width=\textwidth]{img/LED_period.png}
+        \caption{LED Period}
+        % \label{fig:binary_search}
+\end{subfigure}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.6\textwidth]{img/ADCSampling.png}
+    \caption{ADC Sampling}
+    % \label{fig:my_label}
+\end{figure}
+
+% \newpage
+% \section{Appendix - Memory Management}
+
+
+\newpage
+\pagestyle{empty}
+\newgeometry{margin=1cm}
+\begin{landscape}
+
+\section{Appendix - Software}
+XXX - reformat, change margins, add colour coding
+\subsection{head.h}
+\lstinputlisting[language=C]{code/head.h}
+\newpage
+\subsection{main.c}
+\lstinputlisting[language=C]{code/main.c}
+
+\newpage
+\section{Appendix - Hardware} \label{sect_hardware}
+
+\begin{figure}[b!]
+    \centering
+    \includegraphics{img/hardware_schematic.PNG}
+    \caption{Hardware Schematic}
+    \label{fig:hardware_schematic}
+\end{figure}
+
+\begin{figure}[b!]
+    \centering
+    \includegraphics{img/hardware_layout.PNG}
+    \caption{Hardware Layout}
+    \label{fig:hardware_layout}
+\end{figure}
+
+\end{landscape}
+\end{document}
